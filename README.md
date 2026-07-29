@@ -1,6 +1,6 @@
 # Job Intelligence Engine
 
-Job Intelligence Engine is intended to become a local-first tool for collecting and evaluating job opportunities with user-controlled configuration and explainable results. The repository currently provides domain contracts, strict YAML configuration validation, and a PostgreSQL/Prisma storage boundary. Collection, normalization algorithms, filtering, scoring calculations, recommendation selection, APIs, and UI are not implemented.
+Job Intelligence Engine is a local-first foundation for collecting job opportunities with user-controlled configuration and explainable results. It provides strict configuration, PostgreSQL persistence, and resilient Greenhouse and Lever public-API collectors. Filtering, scoring calculations, recommendation selection, APIs, and UI are not implemented.
 
 ## Goals
 
@@ -44,6 +44,7 @@ Unit tests do not require PostgreSQL. Apply the committed storage migration and 
 npm run prisma:migrate:deploy
 npm run cli -- db:check
 npm run cli -- db:status
+npm run cli -- collect --json
 ```
 
 Common service commands are:
@@ -75,8 +76,8 @@ npm run test:db
 ## Repository layout
 
 - `src/domain`: pure domain contracts, categorical types, and range invariants.
-- `src/application`: configuration and persistence use cases, inward-owned ports, rules, and errors.
-- `src/infrastructure`: filesystem/configuration adapters plus Prisma mapping and repositories.
+- `src/application`: configuration, collection, and persistence use cases with inward-owned ports.
+- `src/infrastructure`: filesystem, ATS/HTTP, logging, and Prisma adapters.
 - `src/interfaces`: local configuration and database CLI parsing/output.
 - `src/shared`: narrowly scoped, business-neutral utilities.
 - `prisma`: PostgreSQL schema and committed storage migrations.

@@ -3,15 +3,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   completeCollectionRun,
+  CollectionOrchestrator,
+  CollectorRegistry,
   createCollectionRun,
   createExactJobFingerprint,
   recordCollectionSourceResult,
+  ExistingCollectionPersistence,
   saveRecommendation,
   saveScore,
   updateJobStatus,
   upsertJob,
   upsertJobSource,
   type ScoreWrite,
+  type JobCollector,
 } from '../../src/application/index.js';
 import type { NormalizedJobPosting } from '../../src/domain/index.js';
 import {
@@ -47,6 +51,53 @@ beforeEach(async () => {
 });
 
 describe('PostgreSQL persistence repositories', () => {
+  it('runs the collection orchestration through real repositories', async () => {
+    const posting = makePosting();
+    const collector: JobCollector = {
+      sourceType: 'greenhouse',
+      collect: () =>
+        Promise.resolve({
+          sourceId: 'source-a',
+          sourceType: 'greenhouse',
+          requestCount: 1,
+          rawJobCount: 1,
+          invalidJobCount: 0,
+          warnings: [],
+          candidates: [posting],
+          durationMs: 1,
+        }),
+    };
+    const fixedClock = { now: () => new Date('2026-07-29T10:00:00.000Z') };
+    const noOpLogger = { debug() {}, info() {}, warn() {}, error() {} };
+    const summary = await new CollectionOrchestrator({
+      registry: new CollectorRegistry([collector]),
+      persistence: new ExistingCollectionPersistence(transactions),
+      clock: fixedClock,
+      logger: noOpLogger,
+    }).collect({
+      sources: [
+        {
+          id: 'source-a',
+          type: 'greenhouse',
+          displayName: 'Source A',
+          enabled: true,
+          company: 'Example Company',
+          requestTimeoutMs: 1_000,
+          requestsPerSecond: 1,
+          boardToken: 'example',
+        },
+      ],
+      concurrency: 1,
+      signal: new AbortController().signal,
+      initiatedBy: 'database-test',
+    });
+
+    expect(summary).toMatchObject({ status: 'COMPLETED', createdJobs: 1 });
+    expect(await client.collectionRun.count()).toBe(1);
+    expect(await client.collectionRunSourceResult.count()).toBe(1);
+    expect(await client.job.count()).toBe(1);
+  });
+
   it('upserts sources idempotently and retrieves by configuration ID', async () => {
     const first = await persistSource('source-a', 'Source A');
     const second = await persistSource('source-a', 'Source A updated');
@@ -241,6 +292,7 @@ describe('PostgreSQL persistence repositories', () => {
       updatedCount: 1,
       duplicateCount: 1,
       invalidCount: 0,
+      failedCount: 0,
       startedAt: '2026-07-29T10:00:00.000Z',
       completedAt: '2026-07-29T10:01:00.000Z',
     });

@@ -65,12 +65,16 @@ All keys shown in `scoring.example.yaml` are required; unknown keys are rejected
 
 Every source has a safe unique ID, discriminator, enabled state, display name, tags, and track IDs. Empty `trackIds` means the source is not restricted to specific tracks.
 
+Public ATS sources may also set `company`, `requestTimeoutMs` (1000-60000), and `requestsPerSecond` (greater than 0 and at most 10). Collection defaults to the display name, 15000 ms, and two requests per second.
+
 - `greenhouse`: `boardToken` and optional valid `boardUrl`.
 - `lever`: `companySlug` and optional valid `jobsUrl`.
 - `generic-jsonld`: valid `url`.
 - `generic-page`: valid `url`.
 
 Source validation performs no requests. LinkedIn is not supported. If sources later need secrets, environment-variable references require a separate design; do not store secrets directly in YAML.
+
+Collect enabled Greenhouse and Lever sources with `npm run cli -- collect`. Use repeatable `--source <id>`, `--type greenhouse|lever`, `--concurrency 1..8`, `--config-dir`, `--verbose`, and `--json`. Partial source failures return 0 with a partial summary; configuration/arguments return 2, database initialization/finalization returns 3, and a wholly failed or cancelled run returns 4.
 
 ## Errors
 

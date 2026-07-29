@@ -5,6 +5,7 @@ import {
   type DatabaseCommand,
 } from './database-command.js';
 import { formatHelp } from './output.js';
+import { runCollect } from './collect-command.js';
 import {
   type CommandOutput,
   runValidateConfig,
@@ -13,6 +14,7 @@ import {
 export async function runCli(
   args: readonly string[],
   output: CommandOutput,
+  signal: AbortSignal = new AbortController().signal,
 ): Promise<number> {
   try {
     const parsed = parseArgs({
@@ -23,6 +25,10 @@ export async function runCli(
         'config-dir': { type: 'string' },
         examples: { type: 'boolean', default: false },
         json: { type: 'boolean', default: false },
+        source: { type: 'string', multiple: true, default: [] },
+        type: { type: 'string' },
+        concurrency: { type: 'string', default: '3' },
+        verbose: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
     });
@@ -42,6 +48,23 @@ export async function runCli(
 
     if (isDatabaseCommand(command)) {
       return runDatabaseCommand(command, output);
+    }
+
+    if (command === 'collect') {
+      return runCollect(
+        {
+          configDirectory: parsed.values['config-dir'] ?? 'config',
+          sourceIds: parsed.values.source,
+          ...(parsed.values.type === undefined
+            ? {}
+            : { sourceType: parsed.values.type }),
+          concurrency: Number(parsed.values.concurrency),
+          verbose: parsed.values.verbose,
+          asJson: parsed.values.json,
+          signal,
+        },
+        output,
+      );
     }
 
     if (command !== 'validate-config') {

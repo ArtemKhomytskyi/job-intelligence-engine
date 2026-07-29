@@ -17,3 +17,11 @@ export {
   PrismaRecommendationRepository,
   PrismaScoreRepository,
 } from './persistence/repositories.js';
+export { AbortableSleeper } from './http/abortable-sleeper.js';
+export { NodeFetchHttpClient } from './http/node-fetch-http-client.js';
+export { RateLimitedHttpClient } from './http/rate-limited-http-client.js';
+export { RetryingHttpClient } from './http/retrying-http-client.js';
+export { SystemClock } from './http/system-clock.js';
+export { GreenhouseCollector } from './collectors/greenhouse-collector.js';
+export { LeverCollector } from './collectors/lever-collector.js';
+export { StreamLogger } from './logging/stream-logger.js';

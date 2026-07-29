@@ -58,6 +58,7 @@ export function formatHelp(): string {
     '',
     'Commands:',
     '  validate-config  Validate local or example YAML configuration',
+    '  collect          Collect jobs from enabled Greenhouse and Lever sources',
     '  db:check         Verify the configured database is reachable',
     '  db:migrate       Apply committed migrations',
     '  db:status        Verify committed migrations are current',
@@ -66,6 +67,10 @@ export function formatHelp(): string {
     '  --config-dir <path>  Read configuration from this directory (default: config)',
     '  --examples           Validate tracked *.example.yaml files',
     '  --json               Emit machine-readable JSON',
+    '  --source <id>        Collect one source (repeatable)',
+    '  --type <type>        Collect greenhouse or lever sources',
+    '  --concurrency <n>    Concurrent sources, 1-8 (default: 3)',
+    '  --verbose            Emit diagnostic logs to stderr',
     '  --help               Show this help',
   ].join('\n');
 }
