@@ -1,0 +1,21 @@
+[
+  {
+    "id": "abc",
+    "text": "Product Engineer",
+    "hostedUrl": "https://example.test/jobs/abc",
+    "applyUrl": "https://example.test/jobs/abc/apply",
+    "createdAt": 1782892800000,
+    "descriptionPlain": "Make useful things.",
+    "workplaceType": "remote",
+    "categories": {
+      "location": "Europe",
+      "team": "Product",
+      "commitment": "Full-time"
+    }
+  },
+  {
+    "id": "abc",
+    "text": "Duplicate",
+    "hostedUrl": "https://example.test/jobs/duplicate"
+  }
+]

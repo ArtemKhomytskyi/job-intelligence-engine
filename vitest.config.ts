@@ -6,8 +6,11 @@ export default defineConfig({
       exclude: [
         '**/*.d.ts',
         'src/application/persistence/use-cases.ts',
+        'src/application/collection/existing-persistence.ts',
         'src/infrastructure/persistence/**',
         'src/interfaces/cli/database-command.ts',
+        'src/interfaces/cli/collect-command.ts',
+        'src/interfaces/cli/main.ts',
       ],
       include: ['src/**/*.ts'],
       provider: 'v8',

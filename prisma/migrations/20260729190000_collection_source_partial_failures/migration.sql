@@ -1,0 +1,4 @@
+ALTER TYPE "CollectionSourceStatus" ADD VALUE 'PARTIALLY_FAILED';
+
+ALTER TABLE "CollectionRunSourceResult"
+ADD COLUMN "failedCount" INTEGER NOT NULL DEFAULT 0;

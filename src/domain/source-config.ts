@@ -7,6 +7,9 @@ interface SourceConfigBase {
   readonly displayName: string;
   readonly tags: readonly string[];
   readonly trackIds: readonly string[];
+  readonly company?: string;
+  readonly requestTimeoutMs?: number;
+  readonly requestsPerSecond?: number;
 }
 
 export interface GreenhouseSourceConfig extends SourceConfigBase {

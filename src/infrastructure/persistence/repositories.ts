@@ -555,6 +555,7 @@ function buildSourceResultData(
     updatedCount: input.updatedCount,
     duplicateCount: input.duplicateCount,
     invalidCount: input.invalidCount,
+    failedCount: input.failedCount,
     startedAt: parseTimestamp(input.startedAt, 'startedAt'),
     ...(input.completedAt === undefined
       ? {}
