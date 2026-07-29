@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+LICENSE
+reports/
+generated-reports/
+test-results/
+prisma/generated/
