@@ -4,6 +4,8 @@ import {
   CollectorRegistry,
   ConfigurationError,
   ExistingCollectionPersistence,
+  GenericExtractionEngine,
+  GenericWebCollector,
   loadConfiguration,
   toCollectableSources,
   type CollectionRunSummary,
@@ -15,6 +17,10 @@ import {
   GreenhouseCollector,
   LeverCollector,
   NodeFetchHttpClient,
+  HttpPageAcquirer,
+  CheerioDocumentExtractor,
+  PlaywrightBrowserRenderer,
+  PublicUrlSafetyValidator,
   PrismaTransactionManager,
   RateLimitedHttpClient,
   RetryingHttpClient,
@@ -40,6 +46,7 @@ export async function runCollect(
 ): Promise<number> {
   const logger = new StreamLogger(output.writeStderr, options.verbose);
   let client: ReturnType<typeof createPrismaClient> | undefined;
+  let browser: PlaywrightBrowserRenderer | undefined;
   try {
     if (
       !Number.isInteger(options.concurrency) ||
@@ -53,11 +60,13 @@ export async function runCollect(
     if (
       options.sourceType !== undefined &&
       options.sourceType !== 'greenhouse' &&
-      options.sourceType !== 'lever'
+      options.sourceType !== 'lever' &&
+      options.sourceType !== 'generic-page' &&
+      options.sourceType !== 'generic-job-list'
     )
       throw new CollectionError(
         'SOURCE_CONFIGURATION_INVALID',
-        'Source type must be greenhouse or lever.',
+        'Source type must be greenhouse, lever, generic-page, or generic-job-list.',
       );
     const bundle = await loadConfiguration(
       {
@@ -76,15 +85,25 @@ export async function runCollect(
     });
     const clock = new SystemClock();
     const sleeper = new AbortableSleeper();
-    const baseHttp = new NodeFetchHttpClient();
+    const urlSafety = new PublicUrlSafetyValidator();
+    const baseHttp = new NodeFetchHttpClient(fetch, urlSafety);
     const http = new RetryingHttpClient(
       new RateLimitedHttpClient(baseHttp, clock, sleeper),
       sleeper,
       logger,
     );
+    browser = new PlaywrightBrowserRenderer(urlSafety, clock);
+    const extractionEngine = new GenericExtractionEngine(
+      new HttpPageAcquirer(http),
+      new CheerioDocumentExtractor(),
+      browser,
+      logger,
+    );
     const registry = new CollectorRegistry([
       new GreenhouseCollector(http, clock),
       new LeverCollector(http, clock),
+      new GenericWebCollector('generic-page', extractionEngine, clock),
+      new GenericWebCollector('generic-job-list', extractionEngine, clock),
     ]);
     client = createPrismaClient();
     const persistence = new ExistingCollectionPersistence(
@@ -119,6 +138,7 @@ export async function runCollect(
       ? 3
       : 4;
   } finally {
+    if (browser !== undefined) await browser.close();
     if (client !== undefined) await client.$disconnect();
   }
 }

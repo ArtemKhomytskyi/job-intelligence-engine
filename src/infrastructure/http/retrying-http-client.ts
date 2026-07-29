@@ -3,6 +3,7 @@ import {
   type HttpClient,
   type HttpJsonResponse,
   type HttpRequest,
+  type HttpTextResponse,
   type JsonDecoder,
   type Logger,
   type Sleeper,
@@ -21,10 +22,21 @@ export class RetryingHttpClient implements HttpClient {
     request: HttpRequest,
     decoder: JsonDecoder<T>,
   ): Promise<HttpJsonResponse<T>> {
+    return this.retry(request, () => this.delegate.getJson(request, decoder));
+  }
+
+  public getText(request: HttpRequest): Promise<HttpTextResponse> {
+    return this.retry(request, () => this.delegate.getText(request));
+  }
+
+  private async retry<T extends { readonly attempts: number }>(
+    request: HttpRequest,
+    operation: () => Promise<T>,
+  ): Promise<T> {
     let lastError: CollectionError | undefined;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
       try {
-        const response = await this.delegate.getJson(request, decoder);
+        const response = await operation();
         return { ...response, attempts: attempt };
       } catch (cause: unknown) {
         const error =

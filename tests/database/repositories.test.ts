@@ -9,6 +9,8 @@ import {
   createExactJobFingerprint,
   recordCollectionSourceResult,
   ExistingCollectionPersistence,
+  GenericExtractionEngine,
+  GenericWebCollector,
   saveRecommendation,
   saveScore,
   updateJobStatus,
@@ -16,9 +18,12 @@ import {
   upsertJobSource,
   type ScoreWrite,
   type JobCollector,
+  type BrowserPageRenderer,
+  type HtmlPageAcquirer,
 } from '../../src/application/index.js';
 import type { NormalizedJobPosting } from '../../src/domain/index.js';
 import {
+  CheerioDocumentExtractor,
   createPrismaClient,
   PrismaTransactionManager,
 } from '../../src/infrastructure/index.js';
@@ -96,6 +101,88 @@ describe('PostgreSQL persistence repositories', () => {
     expect(await client.collectionRun.count()).toBe(1);
     expect(await client.collectionRunSourceResult.count()).toBe(1);
     expect(await client.job.count()).toBe(1);
+  });
+
+  it('extracts, normalizes, and persists a generic page through the real repositories', async () => {
+    const fixedClock = { now: () => new Date('2026-07-29T10:00:00.000Z') };
+    const noOpLogger = { debug() {}, info() {}, warn() {}, error() {} };
+    const acquirer: HtmlPageAcquirer = {
+      acquire: (request) =>
+        Promise.resolve({
+          requestedUrl: request.url,
+          finalUrl: request.url,
+          html: `<!doctype html><script type="application/ld+json">${JSON.stringify(
+            {
+              '@context': 'https://schema.org',
+              '@type': 'JobPosting',
+              title: 'Generic Persistence Engineer',
+              hiringOrganization: { name: 'Synthetic Labs' },
+              description: 'A deterministic generic extraction fixture.',
+              url: request.url,
+              identifier: { value: 'generic-persistence-1' },
+            },
+          )}</script>`,
+          status: 200,
+          requestCount: 1,
+          redirectCount: 0,
+          rendered: false,
+          blockedResourceCount: 0,
+        }),
+    };
+    const browser: BrowserPageRenderer = {
+      render: () =>
+        Promise.reject(new Error('Browser fallback was unexpected.')),
+      close: () => Promise.resolve(),
+    };
+    const collector = new GenericWebCollector(
+      'generic-page',
+      new GenericExtractionEngine(
+        acquirer,
+        new CheerioDocumentExtractor(),
+        browser,
+        noOpLogger,
+      ),
+      fixedClock,
+    );
+    const summary = await new CollectionOrchestrator({
+      registry: new CollectorRegistry([collector]),
+      persistence: new ExistingCollectionPersistence(transactions),
+      clock: fixedClock,
+      logger: noOpLogger,
+    }).collect({
+      sources: [
+        {
+          id: 'generic-persistence',
+          type: 'generic-page',
+          displayName: 'Generic persistence fixture',
+          enabled: true,
+          company: 'Synthetic Labs',
+          requestTimeoutMs: 1_000,
+          requestsPerSecond: 1,
+          url: 'https://jobs.example.test/generic-persistence',
+          browserTimeoutMs: 3_000,
+          maxDiscoveredLinks: 10,
+          maxTraversalDepth: 0,
+          allowBrowserFallback: false,
+        },
+      ],
+      concurrency: 1,
+      signal: new AbortController().signal,
+      initiatedBy: 'generic-database-test',
+    });
+
+    expect(summary).toMatchObject({ status: 'COMPLETED', createdJobs: 1 });
+    expect(await client.job.findFirst()).toMatchObject({
+      title: 'Generic Persistence Engineer',
+      company: 'Synthetic Labs',
+      canonicalUrl: 'https://jobs.example.test/generic-persistence',
+      metadata: { extractionStrategy: 'json-ld' },
+    });
+    expect(await client.collectionRunSourceResult.findFirst()).toMatchObject({
+      discoveredCount: 1,
+      insertedCount: 1,
+      metadata: { pagesFetched: 1, browserFallbacks: 0 },
+    });
   });
 
   it('upserts sources idempotently and retrieves by configuration ID', async () => {

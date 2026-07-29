@@ -3,6 +3,7 @@ import type {
   HttpClient,
   HttpJsonResponse,
   HttpRequest,
+  HttpTextResponse,
   JsonDecoder,
   Sleeper,
 } from '../../application/index.js';
@@ -20,6 +21,19 @@ export class RateLimitedHttpClient implements HttpClient {
     request: HttpRequest,
     decoder: JsonDecoder<T>,
   ): Promise<HttpJsonResponse<T>> {
+    return this.schedule(request, () =>
+      this.delegate.getJson(request, decoder),
+    );
+  }
+
+  public getText(request: HttpRequest): Promise<HttpTextResponse> {
+    return this.schedule(request, () => this.delegate.getText(request));
+  }
+
+  private schedule<T>(
+    request: HttpRequest,
+    operation: () => Promise<T>,
+  ): Promise<T> {
     const previous = this.tails.get(request.rateLimitKey) ?? Promise.resolve();
     const execution = previous
       .catch(() => undefined)
@@ -34,7 +48,7 @@ export class RateLimitedHttpClient implements HttpClient {
           request.rateLimitKey,
           this.clock.now().getTime() + request.minimumIntervalMs,
         );
-        return this.delegate.getJson(request, decoder);
+        return operation();
       });
     this.tails.set(
       request.rateLimitKey,

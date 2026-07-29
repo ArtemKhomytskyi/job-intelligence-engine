@@ -117,6 +117,9 @@ export function normalizeCollectedJob(
       ...(candidate.publishedAt === undefined
         ? {}
         : { publishedAt: normalizeTimestamp(candidate.publishedAt) }),
+      ...(candidate.expiresAt === undefined
+        ? {}
+        : { expiresAt: normalizeTimestamp(candidate.expiresAt) }),
       collectedAt: normalizeTimestamp(collectedAt),
       metadata,
     },

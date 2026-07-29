@@ -1,6 +1,6 @@
 # Job Intelligence Engine
 
-Job Intelligence Engine is a local-first foundation for collecting job opportunities with user-controlled configuration and explainable results. It provides strict configuration, PostgreSQL persistence, and resilient Greenhouse and Lever public-API collectors. Filtering, scoring calculations, recommendation selection, APIs, and UI are not implemented.
+Job Intelligence Engine is a local-first foundation for collecting job opportunities with user-controlled configuration and explainable results. It provides strict configuration, PostgreSQL persistence, resilient Greenhouse and Lever public-API collectors, and bounded generic HTML extraction with optional Chromium fallback. Filtering, scoring calculations, recommendation selection, APIs, and UI are not implemented.
 
 ## Goals
 
@@ -8,11 +8,11 @@ Job Intelligence Engine is a local-first foundation for collecting job opportuni
 - Reproducible npm, PostgreSQL, Prisma, Docker Compose, and CI workflows.
 - Local handling of future personal job-search data by default.
 
-The current phase stores already-produced data and history; it contains no collection, filtering, scoring, or recommendation-selection algorithms.
+The current phase collects and stores jobs; it contains no filtering, scoring, or recommendation-selection algorithms.
 
 ## Technology
 
-Node.js 22 LTS, npm, TypeScript, Zod, YAML, PostgreSQL 17, Prisma, Vitest, ESLint, Prettier, Docker Compose, and GitHub Actions.
+Node.js 22 LTS, npm, TypeScript, Zod, YAML, PostgreSQL 17, Prisma, Cheerio, Playwright Chromium, Vitest, ESLint, Prettier, Docker Compose, and GitHub Actions.
 
 ## Get started
 
@@ -35,6 +35,7 @@ Copy `.env.example` to `.env`. Its `DATABASE_URL` must use the same user, passwo
 ```sh
 npm run db:up
 docker compose ps
+npm run playwright:install
 npm run verify
 ```
 
@@ -65,13 +66,14 @@ npm run lint
 npm run typecheck
 npm test
 npm run test:coverage
+npm run test:browser
 npm run prisma:validate
 npm run prisma:generate
 npm run build
 npm run test:db
 ```
 
-`npm run verify` runs formatting, linting, type-checking, database-independent tests, Prisma validation and generation, and the build. `npm run verify:full` additionally applies migrations to the guarded `TEST_DATABASE_URL` and runs real PostgreSQL tests. Coverage remains a separate explicit check. See the [database guide](docs/database/README.md) and [database-test guide](docs/testing/database-tests.md).
+`npm run verify` runs formatting, linting, type-checking, database-independent tests, Prisma validation and generation, and the build. `npm run verify:full` additionally runs isolated Chromium fixtures, applies migrations to the guarded `TEST_DATABASE_URL`, and runs real PostgreSQL tests. Coverage remains a separate explicit check. See the [generic collector guide](docs/collectors/generic-web.md), [database guide](docs/database/README.md), and [database-test guide](docs/testing/database-tests.md).
 
 ## Repository layout
 

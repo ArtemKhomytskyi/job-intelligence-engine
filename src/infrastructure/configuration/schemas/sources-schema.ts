@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { idSchema, nonEmptyStringSchema, urlSchema } from './common-schema.js';
+import {
+  idSchema,
+  nonEmptyStringSchema,
+  publicHttpsUrlSchema,
+  urlSchema,
+} from './common-schema.js';
 
 const commonSourceFields = {
   id: idSchema,
@@ -37,10 +42,24 @@ const genericJsonLdSchema = z.strictObject({
   settings: z.strictObject({ url: urlSchema }),
 });
 
+const genericWebSettings = z.strictObject({
+  url: publicHttpsUrlSchema,
+  browserTimeoutMs: z.number().int().min(3_000).max(90_000).optional(),
+  maxDiscoveredLinks: z.number().int().min(1).max(200).optional(),
+  maxTraversalDepth: z.number().int().min(0).max(2).optional(),
+  allowBrowserFallback: z.boolean().optional(),
+});
+
 const genericPageSchema = z.strictObject({
   ...commonSourceFields,
   type: z.literal('generic-page'),
-  settings: z.strictObject({ url: urlSchema }),
+  settings: genericWebSettings,
+});
+
+const genericJobListSchema = z.strictObject({
+  ...commonSourceFields,
+  type: z.literal('generic-job-list'),
+  settings: genericWebSettings,
 });
 
 export const sourcesSchema = z.strictObject({
@@ -50,6 +69,7 @@ export const sourcesSchema = z.strictObject({
       leverSchema,
       genericJsonLdSchema,
       genericPageSchema,
+      genericJobListSchema,
     ]),
   ),
 });
