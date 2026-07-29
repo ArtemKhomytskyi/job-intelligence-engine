@@ -74,7 +74,7 @@ describe('HTTP clients', () => {
         { ...request, url: 'http://example.test' },
         decoder,
       ),
-    ).rejects.toMatchObject({ code: 'HTTP_CLIENT_ERROR' });
+    ).rejects.toMatchObject({ code: 'URL_UNSAFE' });
   });
 
   it('maps timeout and caller cancellation separately', async () => {
@@ -90,6 +90,8 @@ describe('HTTP clients', () => {
     const timeoutAssertion = expect(
       hanging.getJson({ ...request, timeoutMs: 10 }, decoder),
     ).rejects.toMatchObject({ code: 'HTTP_TIMEOUT' });
+    await Promise.resolve();
+    await Promise.resolve();
     await vi.advanceTimersByTimeAsync(10);
     await timeoutAssertion;
     const controller = new AbortController();
@@ -104,9 +106,43 @@ describe('HTTP clients', () => {
     vi.useRealTimers();
   });
 
+  it('bounds redirects and detects redirect loops', async () => {
+    const redirecting = new NodeFetchHttpClient((url) => {
+      const value =
+        typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      return Promise.resolve(
+        new Response('', {
+          status: 302,
+          headers: { location: value.endsWith('/one') ? '/two' : '/one' },
+        }),
+      );
+    });
+    await expect(
+      redirecting.getText({
+        ...request,
+        url: 'https://example.test/one',
+        maximumRedirects: 5,
+      }),
+    ).rejects.toMatchObject({ code: 'REDIRECT_LOOP' });
+    await expect(
+      redirecting.getText({
+        ...request,
+        url: 'https://example.test/one',
+        maximumRedirects: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'REDIRECT_LIMIT_EXCEEDED' });
+    const missingLocation = new NodeFetchHttpClient(() =>
+      Promise.resolve(new Response('', { status: 302 })),
+    );
+    await expect(missingLocation.getText(request)).rejects.toMatchObject({
+      code: 'HTTP_RESPONSE_INVALID',
+    });
+  });
+
   it('retries only retryable failures', async () => {
     let calls = 0;
     const delegate: HttpClient = {
+      getText: () => Promise.reject(new Error('not used')),
       getJson(_request, responseDecoder) {
         calls += 1;
         if (calls < 3)
@@ -129,6 +165,7 @@ describe('HTTP clients', () => {
       }),
     ).resolves.toMatchObject({ data: 1, attempts: 3 });
     const permanent: HttpClient = {
+      getText: () => Promise.reject(new Error('not used')),
       getJson: () =>
         Promise.reject(
           new CollectionError('HTTP_CLIENT_ERROR', 'permanent', {
@@ -156,6 +193,7 @@ describe('HTTP clients', () => {
       },
     };
     const delegate: HttpClient = {
+      getText: () => Promise.reject(new Error('not used')),
       getJson(_request, responseDecoder) {
         return Promise.resolve({
           data: responseDecoder.decode(true),

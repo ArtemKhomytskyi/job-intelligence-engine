@@ -1,6 +1,7 @@
 import type { JsonValue, NormalizedJobPosting } from '../../domain/index.js';
 
-export type CollectorSourceType = 'greenhouse' | 'lever';
+export type CollectorSourceType =
+  'greenhouse' | 'lever' | 'generic-page' | 'generic-job-list';
 
 export interface CollectableSourceBase {
   readonly id: string;
@@ -22,8 +23,20 @@ export interface LeverCollectableSource extends CollectableSourceBase {
   readonly companySlug: string;
 }
 
+export interface GenericWebCollectableSource extends CollectableSourceBase {
+  readonly type: 'generic-page' | 'generic-job-list';
+  readonly url: string;
+  readonly browserTimeoutMs: number;
+  readonly maxDiscoveredLinks: number;
+  readonly maxTraversalDepth: number;
+  readonly allowBrowserFallback: boolean;
+  readonly allowTestLoopback?: boolean;
+}
+
 export type CollectableSource =
-  GreenhouseCollectableSource | LeverCollectableSource;
+  | GreenhouseCollectableSource
+  | LeverCollectableSource
+  | GenericWebCollectableSource;
 
 export interface CollectedJobCandidate {
   readonly externalId: string;
@@ -37,6 +50,7 @@ export interface CollectedJobCandidate {
   readonly rawEmploymentType?: string;
   readonly rawWorkplaceType?: string;
   readonly publishedAt?: string;
+  readonly expiresAt?: string;
   readonly metadata?: Readonly<Record<string, JsonValue>>;
 }
 
@@ -46,7 +60,14 @@ export interface CollectionContext {
 }
 
 export interface CollectorWarning {
-  readonly code: 'JOB_NORMALIZATION_FAILED' | 'DUPLICATE_SOURCE_JOB';
+  readonly code:
+    | 'JOB_NORMALIZATION_FAILED'
+    | 'DUPLICATE_SOURCE_JOB'
+    | 'PAGE_EXTRACTION_FAILED'
+    | 'MALFORMED_JSON_LD'
+    | 'TRAVERSAL_LIMIT_REACHED'
+    | 'BROWSER_FALLBACK_FAILED'
+    | 'KNOWN_ATS_DETECTED';
   readonly message: string;
   readonly externalId?: string;
 }
@@ -60,6 +81,7 @@ export interface CollectorResult {
   readonly warnings: readonly CollectorWarning[];
   readonly candidates: readonly NormalizedJobPosting[];
   readonly durationMs: number;
+  readonly diagnostics?: Readonly<Record<string, JsonValue>>;
 }
 
 export type SourceCollectionStatus =

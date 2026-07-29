@@ -179,11 +179,31 @@ export function mapSources(document: SourcesDocument): readonly SourceConfig[] {
           },
         };
       case 'generic-jsonld':
-      case 'generic-page':
         return {
           ...common,
           type: source.type,
           settings: { url: source.settings.url },
+        };
+      case 'generic-page':
+      case 'generic-job-list':
+        return {
+          ...common,
+          type: source.type,
+          settings: {
+            url: source.settings.url,
+            ...(source.settings.browserTimeoutMs === undefined
+              ? {}
+              : { browserTimeoutMs: source.settings.browserTimeoutMs }),
+            ...(source.settings.maxDiscoveredLinks === undefined
+              ? {}
+              : { maxDiscoveredLinks: source.settings.maxDiscoveredLinks }),
+            ...(source.settings.maxTraversalDepth === undefined
+              ? {}
+              : { maxTraversalDepth: source.settings.maxTraversalDepth }),
+            ...(source.settings.allowBrowserFallback === undefined
+              ? {}
+              : { allowBrowserFallback: source.settings.allowBrowserFallback }),
+          },
         };
     }
   });

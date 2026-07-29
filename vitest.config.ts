@@ -8,6 +8,7 @@ export default defineConfig({
         'src/application/persistence/use-cases.ts',
         'src/application/collection/existing-persistence.ts',
         'src/infrastructure/persistence/**',
+        'src/infrastructure/browser/playwright-browser-renderer.ts',
         'src/interfaces/cli/database-command.ts',
         'src/interfaces/cli/collect-command.ts',
         'src/interfaces/cli/main.ts',
@@ -23,7 +24,7 @@ export default defineConfig({
       },
     },
     environment: 'node',
-    exclude: ['tests/database/**/*.test.ts'],
+    exclude: ['tests/browser/**/*.test.ts', 'tests/database/**/*.test.ts'],
     include: ['tests/**/*.test.ts'],
   },
 });

@@ -30,16 +30,23 @@ sources:
     settings:
       companySlug: example-labs
       jobsUrl: https://jobs.example.com/example-labs
-  - id: example-jsonld
-    type: generic-jsonld
+  - id: example-job-list
+    type: generic-job-list
     enabled: true
-    displayName: Example Structured Jobs Page
+    displayName: Example Generic Jobs List
+    company: Example Web Company
+    requestTimeoutMs: 15000
+    requestsPerSecond: 1
     tags:
       - structured-data
     trackIds:
       - community-web3
     settings:
       url: https://careers.example.com/jobs
+      browserTimeoutMs: 30000
+      maxDiscoveredLinks: 50
+      maxTraversalDepth: 1
+      allowBrowserFallback: true
   - id: example-page-disabled
     type: generic-page
     enabled: false
@@ -49,3 +56,4 @@ sources:
     trackIds: []
     settings:
       url: https://careers.example.org/openings
+      allowBrowserFallback: false

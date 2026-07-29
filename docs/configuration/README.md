@@ -69,12 +69,15 @@ Public ATS sources may also set `company`, `requestTimeoutMs` (1000-60000), and 
 
 - `greenhouse`: `boardToken` and optional valid `boardUrl`.
 - `lever`: `companySlug` and optional valid `jobsUrl`.
-- `generic-jsonld`: valid `url`.
-- `generic-page`: valid `url`.
+- `generic-page`: public HTTPS `url` plus optional browser timeout, link/depth limits, and browser fallback flag.
+- `generic-job-list`: the same settings, with a default traversal depth of one.
+- `generic-jsonld`: retained as a configuration-only legacy discriminator; use `generic-page` for collection.
+
+Generic browser timeouts must be 3000-90000 ms, discovered-link limits 1-200, and traversal depth 0-2. Defaults are 15000 ms, 50 links, browser fallback enabled, and depth zero (`generic-page`) or one (`generic-job-list`).
 
 Source validation performs no requests. LinkedIn is not supported. If sources later need secrets, environment-variable references require a separate design; do not store secrets directly in YAML.
 
-Collect enabled Greenhouse and Lever sources with `npm run cli -- collect`. Use repeatable `--source <id>`, `--type greenhouse|lever`, `--concurrency 1..8`, `--config-dir`, `--verbose`, and `--json`. Partial source failures return 0 with a partial summary; configuration/arguments return 2, database initialization/finalization returns 3, and a wholly failed or cancelled run returns 4.
+Collect enabled sources with `npm run cli -- collect`. Use repeatable `--source <id>`, `--type greenhouse|lever|generic-page|generic-job-list`, `--concurrency 1..8`, `--config-dir`, `--verbose`, and `--json`. Partial source failures return 0 with a partial summary; configuration/arguments return 2, database initialization/finalization returns 3, and a wholly failed or cancelled run returns 4.
 
 ## Errors
 

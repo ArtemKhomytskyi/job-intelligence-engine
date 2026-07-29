@@ -68,7 +68,7 @@ export function formatHelp(): string {
     '  --examples           Validate tracked *.example.yaml files',
     '  --json               Emit machine-readable JSON',
     '  --source <id>        Collect one source (repeatable)',
-    '  --type <type>        Collect greenhouse or lever sources',
+    '  --type <type>        Collect greenhouse, lever, generic-page, or generic-job-list sources',
     '  --concurrency <n>    Concurrent sources, 1-8 (default: 3)',
     '  --verbose            Emit diagnostic logs to stderr',
     '  --help               Show this help',

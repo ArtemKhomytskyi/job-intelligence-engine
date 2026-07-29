@@ -54,6 +54,7 @@ export const SOURCE_TYPES = [
   'lever',
   'generic-jsonld',
   'generic-page',
+  'generic-job-list',
 ] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 

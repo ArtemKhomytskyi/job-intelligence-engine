@@ -216,6 +216,7 @@ export class CollectionOrchestrator {
         started,
         completed,
         result.warnings.map((warning) => warning.code),
+        result.diagnostics,
       );
       return summary;
     } catch (error: unknown) {
@@ -259,6 +260,7 @@ export class CollectionOrchestrator {
     started: Date,
     completed: Date,
     warnings: readonly string[],
+    diagnostics?: Readonly<Record<string, JsonValue>>,
   ): Promise<void> {
     const input: CollectionSourceResultWrite = {
       collectionRunId: runId,
@@ -283,6 +285,7 @@ export class CollectionOrchestrator {
         linkedCount: summary.linkedJobs,
         requestCount: summary.requestCount,
         warnings,
+        ...(diagnostics ?? {}),
       },
     };
     return this.dependencies.persistence.recordSourceResult(input);
@@ -290,15 +293,24 @@ export class CollectionOrchestrator {
 }
 
 function toSourceWrite(source: CollectableSource): JobSourceWrite {
+  const settings: JsonValue =
+    source.type === 'greenhouse'
+      ? { boardToken: source.boardToken }
+      : source.type === 'lever'
+        ? { companySlug: source.companySlug }
+        : {
+            url: source.url,
+            browserTimeoutMs: source.browserTimeoutMs,
+            maxDiscoveredLinks: source.maxDiscoveredLinks,
+            maxTraversalDepth: source.maxTraversalDepth,
+            allowBrowserFallback: source.allowBrowserFallback,
+          };
   return {
     configSourceId: source.id,
     type: source.type,
     displayName: source.displayName,
     enabled: source.enabled,
-    settings:
-      source.type === 'greenhouse'
-        ? { boardToken: source.boardToken }
-        : { companySlug: source.companySlug },
+    settings,
   };
 }
 

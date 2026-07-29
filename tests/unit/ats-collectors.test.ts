@@ -16,6 +16,7 @@ function http(data: unknown): HttpClient {
   return {
     getJson: (_request, decoder) =>
       Promise.resolve({ data: decoder.decode(data), status: 200, attempts: 1 }),
+    getText: () => Promise.reject(new Error('not used')),
   };
 }
 

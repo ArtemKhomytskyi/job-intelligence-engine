@@ -37,13 +37,25 @@ export interface GenericJsonLdSourceConfig extends SourceConfigBase {
 
 export interface GenericPageSourceConfig extends SourceConfigBase {
   readonly type: 'generic-page';
-  readonly settings: {
-    readonly url: string;
-  };
+  readonly settings: GenericWebSettings;
+}
+
+export interface GenericJobListSourceConfig extends SourceConfigBase {
+  readonly type: 'generic-job-list';
+  readonly settings: GenericWebSettings;
+}
+
+export interface GenericWebSettings {
+  readonly url: string;
+  readonly browserTimeoutMs?: number;
+  readonly maxDiscoveredLinks?: number;
+  readonly maxTraversalDepth?: number;
+  readonly allowBrowserFallback?: boolean;
 }
 
 export type SourceConfig =
   | GreenhouseSourceConfig
   | LeverSourceConfig
   | GenericJsonLdSourceConfig
-  | GenericPageSourceConfig;
+  | GenericPageSourceConfig
+  | GenericJobListSourceConfig;
