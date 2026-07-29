@@ -1,0 +1,39 @@
+# Fictional, non-sensitive profile used to validate the configuration contract.
+candidate:
+  id: example-candidate
+  displayName: Artem
+  headline: Product-minded data and software specialist
+  summary: Interested in technical roles with measurable user impact.
+  education:
+    - level: master
+      field: Applied Computing
+      institution: Example Institute of Technology
+  professionalExperienceSummary: Experience delivering data products and developer-facing software.
+  skills:
+    - name: TypeScript
+      yearsOfExperience: 4
+    - name: Python
+      yearsOfExperience: 5
+    - name: Data analysis
+  languages:
+    - code: en
+      name: English
+      proficiency: fluent
+    - code: de
+      name: German
+      proficiency: professional
+  citizenships:
+    - DE
+  workAuthorizations:
+    - country: DE
+      status: citizen
+  preferredEmploymentTypes:
+    - full-time
+    - contract
+  location:
+    country: DE
+    city: Berlin
+    willingToRelocate: true
+    relocationCountries:
+      - NL
+      - GB

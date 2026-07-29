@@ -1,0 +1,130 @@
+# Tracks describe independent career directions and contain no candidate identity.
+tracks:
+  - id: quant
+    displayName: Quantitative Research
+    enabled: true
+    targetTitles:
+      - Quantitative Researcher
+      - Quantitative Developer
+    includeKeywords:
+      - statistics
+      - markets
+    excludeKeywords:
+      - high-frequency trading operations
+    preferredSkills:
+      - Python
+      - probability
+    preferredIndustries:
+      - financial technology
+    priority: 5
+    recommendationQuota: 4
+  - id: data-science
+    displayName: Data Science
+    enabled: true
+    targetTitles:
+      - Data Scientist
+      - Applied Scientist
+    includeKeywords:
+      - experimentation
+      - machine learning
+    excludeKeywords:
+      - unpaid
+    preferredSkills:
+      - Python
+      - SQL
+    preferredIndustries:
+      - software
+    priority: 5
+    recommendationQuota: 4
+  - id: ai
+    displayName: Applied AI
+    enabled: true
+    targetTitles:
+      - AI Engineer
+      - Machine Learning Engineer
+    includeKeywords:
+      - language models
+      - evaluation
+    excludeKeywords:
+      - data labeling
+    preferredSkills:
+      - TypeScript
+      - Python
+    preferredIndustries:
+      - artificial intelligence
+    priority: 4
+    recommendationQuota: 4
+  - id: marketing-devrel
+    displayName: Technical Marketing and Developer Relations
+    enabled: true
+    targetTitles:
+      - Developer Advocate
+      - Technical Product Marketing Manager
+    includeKeywords:
+      - developer education
+      - technical content
+    excludeKeywords:
+      - commission only
+    preferredSkills:
+      - public speaking
+      - technical writing
+    preferredIndustries:
+      - developer tools
+    priority: 3
+    recommendationQuota: 4
+  - id: community-web3
+    displayName: Technical Community
+    enabled: true
+    targetTitles:
+      - Technical Community Manager
+      - Ecosystem Lead
+    includeKeywords:
+      - community programs
+      - ecosystem
+    excludeKeywords:
+      - token promotion
+    preferredSkills:
+      - community strategy
+      - analytics
+    preferredIndustries:
+      - distributed systems
+    priority: 2
+    recommendationQuota: 4
+
+preferences:
+  preferredCountries:
+    - DE
+    - NL
+    - GB
+  allowedRemotePolicies:
+    - remote
+    - hybrid
+  willingToRelocate: true
+  relocationCountries:
+    - NL
+    - GB
+  preferredCompanySizes:
+    - startup
+    - medium
+    - large
+  allowedEmploymentTypes:
+    - full-time
+    - contract
+  excludedSeniorityLevels:
+    - intern
+    - executive
+  excludedCompanies:
+    - Fictional Staffing Example
+  excludedIndustries:
+    - gambling
+  requiredExperience:
+    minimumYears: 0
+    maximumYears: 8
+  desiredSalary:
+    minimum: 70000
+    maximum: 150000
+    currency: EUR
+    period: year
+  dailyRecommendationLimit: 20
+  minimumAcceptableScore: 60
+  maximumRecommendationsPerCompany: 3
