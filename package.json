@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=24.0.0",
+    "node": ">=22.13.0 <23",
     "npm": ">=10.0.0"
   },
   "packageManager": "npm@11.16.0",
@@ -36,14 +36,14 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs --follow postgres",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:coverage && npm run prisma:validate && npm run prisma:generate && npm run build"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run prisma:validate && npm run prisma:generate && npm run build"
   },
   "dependencies": {
     "@prisma/client": "6.19.3"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "@types/node": "24.13.3",
+    "@types/node": "22.20.1",
     "@vitest/coverage-v8": "4.1.10",
     "eslint": "10.8.0",
     "eslint-config-prettier": "10.1.8",

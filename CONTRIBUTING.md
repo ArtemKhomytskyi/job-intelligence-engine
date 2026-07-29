@@ -2,7 +2,7 @@
 
 ## Prepare the environment
 
-Install Node.js 24+, npm 10+, and Docker with Compose. Run `npm install`, copy `.env.example` to `.env`, and use `npm run db:up` when database work requires PostgreSQL.
+Install Node.js 22 LTS (22.13 or newer), npm 10+, and Docker with Compose. Run `npm install`, copy `.env.example` to `.env`, and use `npm run db:up` when database work requires PostgreSQL.
 
 ## Make a change
 

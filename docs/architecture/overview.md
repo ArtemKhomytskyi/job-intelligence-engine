@@ -15,3 +15,5 @@ The local-first model keeps configuration, candidate information, and derived re
 The primary direction is `interfaces -> application -> domain`. Infrastructure depends inward to implement ports owned by application or domain; inner code does not import infrastructure. This prevents Prisma records, HTTP payloads, scraper behavior, and framework lifecycles from becoming domain concepts.
 
 Future source collectors and output adapters should be replaceable implementations composed at an outer entry point. Collection must not decide reporting, and presentation must not know how sources are queried. New mechanisms should extend at ports established by real use cases rather than through speculative universal interfaces.
+
+Accepted design choices and their trade-offs are recorded in the [architecture decision records](../adr/README.md).

@@ -1,22 +1,22 @@
 # Job Intelligence Engine
 
-Job Intelligence Engine is an open-source, local-first project intended to make job discovery configurable, explainable, and private. The repository is currently **engineering foundation only**: job collection, candidate profiles, filtering, scoring, recommendations, application tracking, APIs, and user interfaces are not implemented.
+Job Intelligence Engine is intended to become a local-first tool for collecting and evaluating job opportunities with user-controlled configuration and explainable results. The repository currently contains only the engineering foundation. Job collection, candidate profiles, filtering, scoring, recommendations, application tracking, APIs, and user interfaces are not implemented.
 
 ## Goals
 
-- Establish a strict, testable TypeScript codebase with explicit architectural boundaries.
-- Provide reproducible npm, PostgreSQL, Prisma, Docker Compose, and CI workflows.
-- Keep future personal job-search data local by default and out of version control.
+- A strict TypeScript build with explicit architectural boundaries.
+- Reproducible npm, PostgreSQL, Prisma, Docker Compose, and CI workflows.
+- Local handling of future personal job-search data by default.
 
 The current phase deliberately contains no business logic or speculative domain schema.
 
 ## Technology
 
-Node.js 24 or newer, npm, TypeScript, PostgreSQL 17, Prisma, Vitest, ESLint, Prettier, Docker Compose, and GitHub Actions.
+Node.js 22 LTS, npm, TypeScript, PostgreSQL 17, Prisma, Vitest, ESLint, Prettier, Docker Compose, and GitHub Actions.
 
 ## Get started
 
-Prerequisites are Node.js 24+, npm 10+, and Docker with Compose.
+Use Node.js 22 LTS, version 22.13 or newer, and npm 10 or newer. Docker with Compose is needed only for the local PostgreSQL service.
 
 ```sh
 npm install
@@ -53,7 +53,7 @@ npm run prisma:generate
 npm run build
 ```
 
-`npm run verify` runs every gate above. `npm run prisma:format` formats the schema.
+`npm run verify` runs formatting, linting, type-checking, tests, Prisma validation and generation, and the build. Coverage remains a separate explicit check. `npm run prisma:format` formats the schema.
 
 ## Repository layout
 
@@ -65,13 +65,16 @@ npm run build
 - `prisma`: PostgreSQL datasource and client generator; no models yet.
 - `tests`: deterministic tests, beginning with a foundation smoke test.
 - `docs/architecture`: project-specific boundaries and engineering principles.
+- `docs/adr`: accepted architecture decisions and their trade-offs.
 - `docs/exec-plans`: process and template for substantial changes.
 
-Imports use explicit relative paths. Path aliases are deferred because they would require synchronized TypeScript, test, lint, and runtime resolution with no present benefit.
+Imports use explicit relative paths. The rationale and conditions for reconsidering this are recorded in the [architecture decisions](docs/adr/README.md).
 
 ## Development
 
 Keep changes scoped, add tests for behavior, update relevant documentation, and run `npm run verify` before opening a pull request. See [CONTRIBUTING.md](CONTRIBUTING.md), the [architecture overview](docs/architecture/overview.md), [dependency rules](docs/architecture/dependency-rules.md), and [execution-plan guidance](PLANS.md).
+
+npm scripts are the canonical cross-platform interface. No Makefile is provided because wrappers would duplicate these short commands; Windows contributors do not need Make.
 
 Never commit candidate information, CVs or resumes, contact details, credentials, cookies, sessions, generated application records, or reports. Local-first is a privacy boundary as well as a deployment choice.
 

@@ -2,11 +2,11 @@
 
 ## Purpose and phase
 
-Job Intelligence Engine will become a local-first, explainable job-discovery application. This repository is in Chunk 0: engineering foundation. Chunk 0 contains no business logic. Do not add collectors, job or candidate models, scoring, recommendations, tracking, APIs, UI, or speculative interfaces unless a later scoped task explicitly authorizes them.
+Job Intelligence Engine will become a local-first, explainable job-discovery application. The current repository is an engineering foundation with no business logic. Add collectors, domain models, profiles, scoring, recommendations, tracking, APIs, or UI only when a scoped task explicitly authorizes them.
 
 ## Inspect and scope
 
-Inspect the repository, working tree, applicable instructions, and relevant documentation before modifying anything. Preserve user changes. Do not silently broaden scope. State conflicts and report incomplete acceptance criteria honestly.
+Before editing, inspect the working tree, applicable instructions, code, and relevant documentation. Preserve user changes, keep work within the requested scope, and surface material conflicts.
 
 ## Structure and dependency direction
 
@@ -20,7 +20,7 @@ The intended flow is `interfaces -> application -> domain`; infrastructure imple
 
 ## Design and coding conventions
 
-Apply SOLID where code has real variation, but do not invent unused abstractions. Prefer small cohesive modules, composition, immutable data, deterministic pure behavior, dependency injection at boundaries, KISS, and YAGNI. Use strict TypeScript without `any`, `@ts-ignore`, broad disables, or weakened compiler checks.
+Apply SOLID where code has real variation; avoid speculative abstractions. Prefer small cohesive modules, composition, immutable data, deterministic behavior, and dependency injection at boundaries. Keep strict TypeScript intact: no `any`, `@ts-ignore`, broad disables, or weakened checks.
 
 Use `PascalCase` for types and classes, `camelCase` for values and functions, and descriptive kebab-case file names except conventional `index.ts` entry points. Export only intentional APIs. Avoid hidden global mutable state.
 
@@ -28,13 +28,13 @@ Fail fast at configuration boundaries with actionable errors. Preserve original 
 
 ## Tests, docs, and dependencies
 
-Tests must be deterministic, isolated, and use synthetic data. Add or update tests with behavior; do not require external services in unit tests. Update README and architecture or execution-plan documents whenever commands, behavior, contracts, or boundaries change.
+Tests must be deterministic, isolated, and use synthetic data. Update tests with behavior and keep unit tests independent of external services. Update relevant documentation when commands, behavior, contracts, or boundaries change.
 
-Add a dependency only for a current, documented need. Prefer the standard library, use npm, update the lockfile, verify maintenance and license compatibility, and avoid unrelated upgrades. Architectural changes require explicit scope, updated architecture docs, and an execution plan when substantial. Large changes must use a living plan from `docs/exec-plans/TEMPLATE.md`.
+Dependencies need a current, documented purpose. Prefer the standard library, use npm, update the lockfile, and avoid unrelated upgrades. Substantial architectural changes require updated architecture documentation and a living plan based on `docs/exec-plans/TEMPLATE.md`.
 
 ## Security and privacy
 
-Never hardcode candidate-specific data. Never commit `.env`, secrets, API keys, contact details, CVs, resumes, candidate profiles, cookies, browser sessions, personal data, generated application records, or reports. Use synthetic examples and keep local data in ignored paths.
+Use synthetic examples. Do not hardcode or commit candidate-specific data, `.env`, secrets, API keys, contact details, CVs, resumes, profiles, cookies, browser sessions, personal data, generated application records, or reports. Keep local data in ignored paths.
 
 ## Mandatory completion checklist
 
@@ -46,7 +46,7 @@ Before finishing an implementation task:
 - Run `npm run typecheck`.
 - Run `npm test`.
 - Run `npm run build`.
-- Update tests and documentation where required.
-- Report each unrun, failed, or incomplete criterion; never claim a check passed unless it ran successfully.
+- Confirm tests and documentation match the change.
+- Report every unrun, failed, or incomplete criterion; claim a check passed only when it was executed successfully.
 
 For foundation or database changes, also run `npm run prisma:validate`, `npm run prisma:generate`, `docker compose config`, and applicable database health checks.
