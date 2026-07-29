@@ -25,6 +25,12 @@ candidate-profiles/
 resumes/
 cvs/
 
+# Private local configuration; tracked *.example.yaml files remain visible.
+config/profile.yaml
+config/search.yaml
+config/scoring.yaml
+config/sources.yaml
+
 prisma/*.db
 prisma/*.db-journal
 

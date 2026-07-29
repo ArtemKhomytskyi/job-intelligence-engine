@@ -1,0 +1,45 @@
+# Source definitions are validated locally; validation performs no network requests.
+sources:
+  - id: example-greenhouse
+    type: greenhouse
+    enabled: true
+    displayName: Example Greenhouse Board
+    tags:
+      - ats
+    trackIds:
+      - data-science
+      - ai
+    settings:
+      boardToken: example-company
+      boardUrl: https://boards.example.com/example-company
+  - id: example-lever
+    type: lever
+    enabled: true
+    displayName: Example Lever Site
+    tags:
+      - ats
+    trackIds:
+      - quant
+      - marketing-devrel
+    settings:
+      companySlug: example-labs
+      jobsUrl: https://jobs.example.com/example-labs
+  - id: example-jsonld
+    type: generic-jsonld
+    enabled: true
+    displayName: Example Structured Jobs Page
+    tags:
+      - structured-data
+    trackIds:
+      - community-web3
+    settings:
+      url: https://careers.example.com/jobs
+  - id: example-page-disabled
+    type: generic-page
+    enabled: false
+    displayName: Disabled Generic Page Example
+    tags:
+      - manual-review
+    trackIds: []
+    settings:
+      url: https://careers.example.org/openings
