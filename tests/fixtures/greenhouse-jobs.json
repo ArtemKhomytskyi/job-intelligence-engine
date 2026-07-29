@@ -1,0 +1,14 @@
+{
+  "jobs": [
+    {
+      "id": 101,
+      "title": " Senior Engineer ",
+      "absolute_url": "https://example.test/jobs/101",
+      "content": "<p>Build &amp; ship.</p><script>secret()</script>",
+      "updated_at": "2026-07-01T10:00:00Z",
+      "location": { "name": "Berlin" },
+      "departments": [{ "name": "Engineering" }]
+    },
+    { "id": 102, "title": 7, "absolute_url": "https://example.test/jobs/102" }
+  ]
+}

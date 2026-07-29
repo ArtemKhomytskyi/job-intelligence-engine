@@ -136,6 +136,7 @@ export type CollectionRunStatus = (typeof COLLECTION_RUN_STATUSES)[number];
 export const COLLECTION_SOURCE_STATUSES = [
   'RUNNING',
   'COMPLETED',
+  'PARTIALLY_FAILED',
   'FAILED',
   'SKIPPED',
 ] as const;
@@ -180,6 +181,7 @@ export interface CollectionSourceResultWrite {
   readonly updatedCount: number;
   readonly duplicateCount: number;
   readonly invalidCount: number;
+  readonly failedCount: number;
   readonly startedAt: string;
   readonly completedAt?: string;
   readonly errorCode?: string;

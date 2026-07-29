@@ -4,6 +4,9 @@ sources:
     type: greenhouse
     enabled: true
     displayName: Example Greenhouse Board
+    company: Example Company
+    requestTimeoutMs: 15000
+    requestsPerSecond: 2
     tags:
       - ats
     trackIds:
@@ -16,6 +19,9 @@ sources:
     type: lever
     enabled: true
     displayName: Example Lever Site
+    company: Example Labs
+    requestTimeoutMs: 15000
+    requestsPerSecond: 2
     tags:
       - ats
     trackIds:

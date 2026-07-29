@@ -146,6 +146,13 @@ export function mapSources(document: SourcesDocument): readonly SourceConfig[] {
       displayName: source.displayName,
       tags: source.tags,
       trackIds: source.trackIds,
+      ...(source.company === undefined ? {} : { company: source.company }),
+      ...(source.requestTimeoutMs === undefined
+        ? {}
+        : { requestTimeoutMs: source.requestTimeoutMs }),
+      ...(source.requestsPerSecond === undefined
+        ? {}
+        : { requestsPerSecond: source.requestsPerSecond }),
     };
 
     switch (source.type) {

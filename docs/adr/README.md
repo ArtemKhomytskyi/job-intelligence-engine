@@ -12,3 +12,4 @@ Accepted records remain in place when superseded; a later ADR should link to and
 - [0006: Keep PostgreSQL and Prisma behind application-owned persistence ports](0006-postgresql-prisma-persistence-boundary.md)
 - [0007: Use versioned exact SHA-256 job fingerprints](0007-versioned-exact-job-fingerprints.md)
 - [0008: Store current status plus immutable history and test against PostgreSQL](0008-status-history-and-real-database-tests.md)
+- [0009: Keep collection contracts and resilience policy inward-owned](0009-application-owned-collection-boundaries.md)
