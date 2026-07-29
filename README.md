@@ -1,6 +1,6 @@
 # Job Intelligence Engine
 
-Job Intelligence Engine is intended to become a local-first tool for collecting and evaluating job opportunities with user-controlled configuration and explainable results. The repository currently provides domain contracts, strict YAML configuration validation, and a local validation CLI. Collection, normalization algorithms, filtering, scoring calculations, recommendations, persistence, APIs, and UI are not implemented.
+Job Intelligence Engine is intended to become a local-first tool for collecting and evaluating job opportunities with user-controlled configuration and explainable results. The repository currently provides domain contracts, strict YAML configuration validation, and a PostgreSQL/Prisma storage boundary. Collection, normalization algorithms, filtering, scoring calculations, recommendation selection, APIs, and UI are not implemented.
 
 ## Goals
 
@@ -8,7 +8,7 @@ Job Intelligence Engine is intended to become a local-first tool for collecting 
 - Reproducible npm, PostgreSQL, Prisma, Docker Compose, and CI workflows.
 - Local handling of future personal job-search data by default.
 
-The current phase defines contracts and validation only; it contains no collection, filtering, scoring, recommendation, or persistence algorithms.
+The current phase stores already-produced data and history; it contains no collection, filtering, scoring, or recommendation-selection algorithms.
 
 ## Technology
 
@@ -38,7 +38,15 @@ docker compose ps
 npm run verify
 ```
 
-Tests do not require PostgreSQL. Prisma validation and generation require `DATABASE_URL`, but do not connect to the database. Common database commands are:
+Unit tests do not require PostgreSQL. Apply the committed storage migration and check database health/status with:
+
+```sh
+npm run prisma:migrate:deploy
+npm run cli -- db:check
+npm run cli -- db:status
+```
+
+Common service commands are:
 
 ```sh
 npm run db:logs
@@ -59,19 +67,20 @@ npm run test:coverage
 npm run prisma:validate
 npm run prisma:generate
 npm run build
+npm run test:db
 ```
 
-`npm run verify` runs formatting, linting, type-checking, tests, Prisma validation and generation, and the build. Coverage remains a separate explicit check. `npm run prisma:format` formats the schema.
+`npm run verify` runs formatting, linting, type-checking, database-independent tests, Prisma validation and generation, and the build. `npm run verify:full` additionally applies migrations to the guarded `TEST_DATABASE_URL` and runs real PostgreSQL tests. Coverage remains a separate explicit check. See the [database guide](docs/database/README.md) and [database-test guide](docs/testing/database-tests.md).
 
 ## Repository layout
 
 - `src/domain`: pure domain contracts, categorical types, and range invariants.
-- `src/application`: configuration orchestration, ports, cross-file rules, and errors.
-- `src/infrastructure`: filesystem, YAML, Zod, and schema-to-domain adapters.
-- `src/interfaces`: local CLI parsing and output.
+- `src/application`: configuration and persistence use cases, inward-owned ports, rules, and errors.
+- `src/infrastructure`: filesystem/configuration adapters plus Prisma mapping and repositories.
+- `src/interfaces`: local configuration and database CLI parsing/output.
 - `src/shared`: narrowly scoped, business-neutral utilities.
-- `prisma`: PostgreSQL datasource and client generator; no models yet.
-- `tests`: deterministic unit, integration, CLI, and foundation tests.
+- `prisma`: PostgreSQL schema and committed storage migrations.
+- `tests`: deterministic unit/integration tests plus a separately invoked PostgreSQL suite.
 - `docs/architecture`: project-specific boundaries and engineering principles.
 - `docs/configuration`: detailed configuration and CLI reference.
 - `docs/adr`: accepted architecture decisions and their trade-offs.

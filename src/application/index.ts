@@ -4,3 +4,8 @@ export * from './configuration/errors.js';
 export * from './configuration/load-configuration.js';
 export * from './configuration/ports.js';
 export * from './configuration/validate-configuration.js';
+export * from './persistence/errors.js';
+export * from './persistence/fingerprint.js';
+export * from './persistence/models.js';
+export * from './persistence/ports.js';
+export * from './persistence/use-cases.js';

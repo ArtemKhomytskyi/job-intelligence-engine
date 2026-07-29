@@ -1,0 +1,22 @@
+name: job-intelligence-engine-test
+
+services:
+  postgres-test:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: jie_test
+      POSTGRES_PASSWORD: jie_test_local_password
+      POSTGRES_DB: jie_test
+    ports:
+      - '${TEST_POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jie_test -d jie_test']
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 3s
+
+volumes:
+  postgres_test_data:

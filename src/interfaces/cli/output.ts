@@ -54,7 +54,13 @@ export function formatConfigurationErrors(
 
 export function formatHelp(): string {
   return [
-    'Usage: npm run cli -- validate-config [options]',
+    'Usage: npm run cli -- <command> [options]',
+    '',
+    'Commands:',
+    '  validate-config  Validate local or example YAML configuration',
+    '  db:check         Verify the configured database is reachable',
+    '  db:migrate       Apply committed migrations',
+    '  db:status        Verify committed migrations are current',
     '',
     'Options:',
     '  --config-dir <path>  Read configuration from this directory (default: config)',

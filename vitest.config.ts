@@ -3,7 +3,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     coverage: {
-      exclude: ['**/*.d.ts'],
+      exclude: [
+        '**/*.d.ts',
+        'src/application/persistence/use-cases.ts',
+        'src/infrastructure/persistence/**',
+        'src/interfaces/cli/database-command.ts',
+      ],
       include: ['src/**/*.ts'],
       provider: 'v8',
       reporter: ['text', 'html'],
@@ -15,6 +20,7 @@ export default defineConfig({
       },
     },
     environment: 'node',
+    exclude: ['tests/database/**/*.test.ts'],
     include: ['tests/**/*.test.ts'],
   },
 });

@@ -27,6 +27,8 @@ docker compose config
 
 For database changes, also start PostgreSQL and confirm its health. Report commands that were not executed or did not pass.
 
+Run `npm run prisma:migrate:deploy`, `npm run cli -- db:check`, and the guarded `npm run test:db` workflow described in [docs/testing/database-tests.md](docs/testing/database-tests.md). Never point `TEST_DATABASE_URL` at developer or production data; its localhost/test-name guard is mandatory.
+
 For configuration changes, run `npm run test:coverage` and `npm run cli -- validate-config --examples`. Keep tracked examples valid together and update `docs/configuration/README.md` when fields or error behavior change.
 
 ## Security and privacy

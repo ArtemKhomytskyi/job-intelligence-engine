@@ -34,10 +34,20 @@
     "prisma:validate": "prisma validate --schema prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:format": "prisma format --schema prisma/schema.prisma",
+    "prisma:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "prisma:migrate:status": "prisma migrate status --schema prisma/schema.prisma",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs --follow postgres",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run prisma:validate && npm run prisma:generate && npm run build"
+    "db:check": "npm run cli -- db:check",
+    "db:test:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "db:test:down": "docker compose -f docker-compose.test.yml down --volumes",
+    "db:test:reset": "node scripts/test-database.mjs reset",
+    "db:test:migrate": "node scripts/test-database.mjs migrate",
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run prisma:validate && npm run prisma:generate && npm run build",
+    "verify:full": "npm run verify && npm run db:test:migrate && npm run test:db"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

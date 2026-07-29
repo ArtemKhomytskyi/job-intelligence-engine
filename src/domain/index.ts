@@ -1,6 +1,7 @@
 export * from './candidate-profile.js';
 export * from './categories.js';
 export * from './job-posting.js';
+export * from './job-status.js';
 export * from './normalized-job-posting.js';
 export * from './raw-job-posting.js';
 export * from './recommendation.js';
