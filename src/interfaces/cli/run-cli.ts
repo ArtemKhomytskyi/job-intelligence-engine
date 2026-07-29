@@ -1,5 +1,9 @@
 import { parseArgs } from 'node:util';
 
+import {
+  runDatabaseCommand,
+  type DatabaseCommand,
+} from './database-command.js';
 import { formatHelp } from './output.js';
 import {
   type CommandOutput,
@@ -28,12 +32,21 @@ export async function runCli(
       return 0;
     }
 
-    if (
-      parsed.positionals[0] !== 'validate-config' ||
-      parsed.positionals.length !== 1
-    ) {
+    const command = parsed.positionals[0];
+    if (parsed.positionals.length !== 1) {
       output.writeStderr(
-        `Unknown command. Run "npm run cli -- validate-config --help" for usage.\n`,
+        `Unknown command. Run "npm run cli -- --help" for usage.\n`,
+      );
+      return 2;
+    }
+
+    if (isDatabaseCommand(command)) {
+      return runDatabaseCommand(command, output);
+    }
+
+    if (command !== 'validate-config') {
+      output.writeStderr(
+        `Unknown command. Run "npm run cli -- --help" for usage.\n`,
       );
       return 2;
     }
@@ -52,4 +65,12 @@ export async function runCli(
     output.writeStderr(`${message}\n`);
     return 2;
   }
+}
+
+function isDatabaseCommand(command: string): command is DatabaseCommand {
+  return (
+    command === 'db:check' ||
+    command === 'db:migrate' ||
+    command === 'db:status'
+  );
 }

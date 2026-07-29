@@ -2,7 +2,7 @@
 
 ## Purpose and phase
 
-Job Intelligence Engine will become a local-first, explainable job-discovery application. Chunk 1 provides domain contracts and validated local configuration. Collectors, persistence, normalization and scoring algorithms, recommendations, tracking, APIs, and UI remain out of scope unless a later task explicitly authorizes them.
+Job Intelligence Engine will become a local-first, explainable job-discovery application. Chunk 2 provides domain/configuration contracts and a PostgreSQL persistence boundary. Collectors, normalization and scoring algorithms, recommendation selection, APIs, and UI remain out of scope unless a later task explicitly authorizes them.
 
 ## Inspect and scope
 
@@ -18,7 +18,7 @@ Before editing, inspect the working tree, applicable instructions, code, and rel
 
 The intended flow is `interfaces -> application -> domain`; infrastructure implements inward-owned abstractions. Domain must never import Prisma, framework, transport, filesystem, process, or network details. Avoid cycles and unnecessary barrel chains. Use explicit relative imports; do not introduce aliases without end-to-end tool support and a documented benefit.
 
-Configuration follows `filesystem read -> YAML parse -> Zod validation -> domain mapping -> cross-file validation`. Zod, YAML, and Node I/O stay in infrastructure; CLI code only composes the use case and formats results.
+Configuration follows `filesystem read -> YAML parse -> Zod validation -> domain mapping -> cross-file validation`. Persistence follows `application use case -> application-owned transaction/repository ports -> Prisma adapter -> PostgreSQL`. Zod, YAML, Prisma, and I/O stay in infrastructure or outer composition.
 
 ## Design and coding conventions
 
@@ -54,3 +54,5 @@ Before finishing an implementation task:
 For foundation or database changes, also run `npm run prisma:validate`, `npm run prisma:generate`, `docker compose config`, and applicable database health checks.
 
 For domain or configuration changes, also run `npm run test:coverage` and `npm run cli -- validate-config --examples`.
+
+For storage changes, also apply migrations to the guarded test database and run `npm run test:db`; never bypass the localhost and test-database-name checks.

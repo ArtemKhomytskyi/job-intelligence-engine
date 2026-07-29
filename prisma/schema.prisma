@@ -6,3 +6,252 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum JobStatus {
+  NEW
+  RECOMMENDED
+  VIEWED
+  APPLIED
+  SKIPPED
+  REJECTED
+  ARCHIVED
+  EXPIRED
+}
+
+enum CollectionRunStatus {
+  RUNNING
+  COMPLETED
+  PARTIALLY_FAILED
+  FAILED
+  CANCELLED
+}
+
+enum CollectionSourceStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+model JobSource {
+  id             String                      @id @default(uuid()) @db.Uuid
+  configSourceId String                      @unique
+  type           String
+  displayName    String
+  enabled        Boolean
+  settings       Json?
+  createdAt      DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                    @updatedAt @db.Timestamptz(3)
+  references     JobSourceReference[]
+  runResults     CollectionRunSourceResult[]
+
+  @@index([enabled])
+}
+
+model Job {
+  id                 String               @id @default(uuid()) @db.Uuid
+  title              String
+  company            String
+  description        String?
+  canonicalUrl       String               @unique
+  applicationUrl     String?
+  normalizedTitle    String
+  normalizedCompany  String
+  locations          Json
+  remotePolicy       String?
+  employmentType     String?
+  seniority          String?
+  salaryMinimum      Decimal?             @db.Decimal(14, 2)
+  salaryMaximum      Decimal?             @db.Decimal(14, 2)
+  salaryCurrency     String?
+  salaryPeriod       String?
+  requiredExperience Json?
+  requiredEducation  String?
+  requiredLanguages  Json
+  skills             Json
+  normalizedSkills   Json
+  publishedAt        DateTime?            @db.Timestamptz(3)
+  expiresAt          DateTime?            @db.Timestamptz(3)
+  firstSeenAt        DateTime             @db.Timestamptz(3)
+  lastSeenAt         DateTime             @db.Timestamptz(3)
+  lastCollectedAt    DateTime             @db.Timestamptz(3)
+  currentStatus      JobStatus            @default(NEW)
+  metadata           Json?
+  createdAt          DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime             @updatedAt @db.Timestamptz(3)
+  sourceReferences   JobSourceReference[]
+  revisions          JobRevision[]
+  fingerprints       JobFingerprint[]
+  scores             JobScore[]
+  recommendations    Recommendation[]
+  statusHistory      JobStatusHistory[]
+
+  @@index([currentStatus])
+  @@index([normalizedCompany])
+  @@index([normalizedTitle])
+  @@index([publishedAt])
+  @@index([lastCollectedAt])
+}
+
+model JobSourceReference {
+  id              String        @id @default(uuid()) @db.Uuid
+  jobId           String        @db.Uuid
+  sourceId        String        @db.Uuid
+  externalId      String?
+  sourceUrl       String
+  firstSeenAt     DateTime      @db.Timestamptz(3)
+  lastSeenAt      DateTime      @db.Timestamptz(3)
+  lastCollectedAt DateTime      @db.Timestamptz(3)
+  metadata        Json?
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(3)
+  job             Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  source          JobSource     @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  revisions       JobRevision[]
+
+  @@unique([sourceId, externalId])
+  @@unique([sourceId, sourceUrl])
+  @@index([jobId])
+}
+
+model JobFingerprint {
+  id          String   @id @default(uuid()) @db.Uuid
+  jobId       String   @db.Uuid
+  fingerprint String
+  algorithm   String
+  version     Int
+  kind        String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([fingerprint, algorithm, version])
+  @@index([jobId])
+}
+
+model JobRevision {
+  id                String              @id @default(uuid()) @db.Uuid
+  jobId             String              @db.Uuid
+  revisionNumber    Int
+  changedAt         DateTime            @db.Timestamptz(3)
+  changedFields     Json
+  snapshot          Json
+  sourceReferenceId String?             @db.Uuid
+  changeType        String
+  reason            String?
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  job               Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sourceReference   JobSourceReference? @relation(fields: [sourceReferenceId], references: [id], onDelete: SetNull)
+
+  @@unique([jobId, revisionNumber])
+  @@index([jobId, changedAt])
+}
+
+model JobStatusHistory {
+  id         String     @id @default(uuid()) @db.Uuid
+  jobId      String     @db.Uuid
+  fromStatus JobStatus?
+  toStatus   JobStatus
+  changedAt  DateTime   @db.Timestamptz(3)
+  reason     String?
+  metadata   Json?
+  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
+  job        Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, changedAt])
+}
+
+model CollectionRun {
+  id              String                      @id @default(uuid()) @db.Uuid
+  startedAt       DateTime                    @db.Timestamptz(3)
+  completedAt     DateTime?                   @db.Timestamptz(3)
+  status          CollectionRunStatus         @default(RUNNING)
+  initiatedBy     String
+  discoveredCount Int                         @default(0)
+  insertedCount   Int                         @default(0)
+  updatedCount    Int                         @default(0)
+  duplicateCount  Int                         @default(0)
+  failedCount     Int                         @default(0)
+  errorSummary    Json?
+  createdAt       DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime                    @updatedAt @db.Timestamptz(3)
+  sourceResults   CollectionRunSourceResult[]
+
+  @@index([startedAt])
+  @@index([status])
+}
+
+model CollectionRunSourceResult {
+  id              String                 @id @default(uuid()) @db.Uuid
+  collectionRunId String                 @db.Uuid
+  sourceId        String                 @db.Uuid
+  status          CollectionSourceStatus
+  discoveredCount Int                    @default(0)
+  insertedCount   Int                    @default(0)
+  updatedCount    Int                    @default(0)
+  duplicateCount  Int                    @default(0)
+  invalidCount    Int                    @default(0)
+  errorCode       String?
+  errorMessage    String?
+  startedAt       DateTime               @db.Timestamptz(3)
+  completedAt     DateTime?              @db.Timestamptz(3)
+  metadata        Json?
+  collectionRun   CollectionRun          @relation(fields: [collectionRunId], references: [id], onDelete: Cascade)
+  source          JobSource              @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([collectionRunId, sourceId])
+  @@index([sourceId])
+}
+
+model JobScore {
+  id              String           @id @default(uuid()) @db.Uuid
+  jobId           String           @db.Uuid
+  searchTrackId   String
+  totalScore      Decimal          @db.Decimal(7, 4)
+  confidence      Decimal          @db.Decimal(7, 4)
+  positiveReasons Json
+  concerns        Json
+  missingData     Json
+  scoringVersion  String
+  calculatedAt    DateTime         @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  job             Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  components      ScoreComponent[]
+  recommendations Recommendation[]
+
+  @@index([jobId, searchTrackId, calculatedAt])
+  @@index([scoringVersion])
+}
+
+model ScoreComponent {
+  id           String   @id @default(uuid()) @db.Uuid
+  scoreId      String   @db.Uuid
+  key          String
+  rawScore     Decimal  @db.Decimal(7, 4)
+  weight       Decimal  @db.Decimal(7, 4)
+  contribution Decimal  @db.Decimal(7, 4)
+  confidence   Decimal  @db.Decimal(7, 4)
+  reasons      Json
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  score        JobScore @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+
+  @@unique([scoreId, key])
+}
+
+model Recommendation {
+  id                  String   @id @default(uuid()) @db.Uuid
+  jobId               String   @db.Uuid
+  scoreId             String   @db.Uuid
+  searchTrackId       String
+  rank                Int
+  recommendationBatch String
+  explanation         String
+  generatedAt         DateTime @db.Timestamptz(3)
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @db.Timestamptz(3)
+  job                 Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  score               JobScore @relation(fields: [scoreId], references: [id], onDelete: Restrict)
+
+  @@unique([recommendationBatch, jobId])
+  @@index([recommendationBatch, rank])
+  @@index([jobId, generatedAt])
+}
