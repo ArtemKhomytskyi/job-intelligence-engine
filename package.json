@@ -1,7 +1,7 @@
 {
   "name": "job-intelligence-engine",
   "version": "0.0.0",
-  "description": "Local-first job discovery application engineering foundation",
+  "description": "Local-first job discovery domain and configuration foundation",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
@@ -9,7 +9,7 @@
     "node": ">=22.13.0 <23",
     "npm": ">=10.0.0"
   },
-  "packageManager": "npm@11.16.0",
+  "packageManager": "npm@10.9.4",
   "files": [
     "dist"
   ],
@@ -21,6 +21,7 @@
   },
   "scripts": {
     "build": "npm run clean && tsc --project tsconfig.build.json",
+    "cli": "tsc --project tsconfig.build.json && node dist/interfaces/cli/main.js",
     "clean": "rimraf dist coverage",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings 0",
@@ -39,7 +40,9 @@
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run prisma:validate && npm run prisma:generate && npm run build"
   },
   "dependencies": {
-    "@prisma/client": "6.19.3"
+    "@prisma/client": "6.19.3",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

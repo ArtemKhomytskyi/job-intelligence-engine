@@ -1,6 +1,6 @@
 # Job Intelligence Engine
 
-Job Intelligence Engine is intended to become a local-first tool for collecting and evaluating job opportunities with user-controlled configuration and explainable results. The repository currently contains only the engineering foundation. Job collection, candidate profiles, filtering, scoring, recommendations, application tracking, APIs, and user interfaces are not implemented.
+Job Intelligence Engine is intended to become a local-first tool for collecting and evaluating job opportunities with user-controlled configuration and explainable results. The repository currently provides domain contracts, strict YAML configuration validation, and a local validation CLI. Collection, normalization algorithms, filtering, scoring calculations, recommendations, persistence, APIs, and UI are not implemented.
 
 ## Goals
 
@@ -8,11 +8,11 @@ Job Intelligence Engine is intended to become a local-first tool for collecting 
 - Reproducible npm, PostgreSQL, Prisma, Docker Compose, and CI workflows.
 - Local handling of future personal job-search data by default.
 
-The current phase deliberately contains no business logic or speculative domain schema.
+The current phase defines contracts and validation only; it contains no collection, filtering, scoring, recommendation, or persistence algorithms.
 
 ## Technology
 
-Node.js 22 LTS, npm, TypeScript, PostgreSQL 17, Prisma, Vitest, ESLint, Prettier, Docker Compose, and GitHub Actions.
+Node.js 22 LTS, npm, TypeScript, Zod, YAML, PostgreSQL 17, Prisma, Vitest, ESLint, Prettier, Docker Compose, and GitHub Actions.
 
 ## Get started
 
@@ -21,6 +21,14 @@ Use Node.js 22 LTS, version 22.13 or newer, and npm 10 or newer. Docker with Com
 ```sh
 npm install
 ```
+
+Validate the safe tracked examples:
+
+```sh
+npm run cli -- validate-config --examples
+```
+
+To use private configuration, copy the four `config/*.example.yaml` files to their corresponding `config/*.yaml` names, edit the private copies, and run `npm run cli -- validate-config`. See the [configuration guide](docs/configuration/README.md) for fields, commands, and error behavior.
 
 Copy `.env.example` to `.env`. Its `DATABASE_URL` must use the same user, password, database, and exposed port as the `POSTGRES_*` values.
 
@@ -57,14 +65,15 @@ npm run build
 
 ## Repository layout
 
-- `src/domain`: future pure business concepts.
-- `src/application`: future use-case coordination and ports.
-- `src/infrastructure`: future database and external-system adapters.
-- `src/interfaces`: future user-facing delivery mechanisms.
+- `src/domain`: pure domain contracts, categorical types, and range invariants.
+- `src/application`: configuration orchestration, ports, cross-file rules, and errors.
+- `src/infrastructure`: filesystem, YAML, Zod, and schema-to-domain adapters.
+- `src/interfaces`: local CLI parsing and output.
 - `src/shared`: narrowly scoped, business-neutral utilities.
 - `prisma`: PostgreSQL datasource and client generator; no models yet.
-- `tests`: deterministic tests, beginning with a foundation smoke test.
+- `tests`: deterministic unit, integration, CLI, and foundation tests.
 - `docs/architecture`: project-specific boundaries and engineering principles.
+- `docs/configuration`: detailed configuration and CLI reference.
 - `docs/adr`: accepted architecture decisions and their trade-offs.
 - `docs/exec-plans`: process and template for substantial changes.
 

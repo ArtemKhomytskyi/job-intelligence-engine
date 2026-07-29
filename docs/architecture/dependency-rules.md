@@ -17,6 +17,8 @@
 - External payloads and Prisma models must not be used as domain models.
 - Circular imports, cross-layer shortcuts, universal interfaces, and chains of barrel re-exports are prohibited.
 
+For configuration, application owns `ConfigFileReader` and `ConfigurationDecoder`. Infrastructure may import Zod, YAML, and Node filesystem APIs to implement them. Domain must not import those technologies. CLI modules compose adapters and format output but must not parse YAML or define schemas.
+
 Use explicit relative imports for now. See [ADR 0002](../adr/0002-relative-imports.md) and [ADR 0003](../adr/0003-no-path-aliases.md).
 
 Code review and documentation enforce these rules in Chunk 0. When enough real modules exist to justify it, focused ESLint restrictions or architecture tests may enforce layer paths and cycles. Add that tooling only through a scoped change with tests and documented false-positive handling.

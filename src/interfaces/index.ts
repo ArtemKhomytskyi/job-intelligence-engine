@@ -1,2 +1,6 @@
-/** User-facing delivery mechanisms will enter through this boundary. */
-export {};
+export { runCli } from './cli/run-cli.js';
+export {
+  formatConfigurationErrors,
+  formatConfigurationSummary,
+  formatHelp,
+} from './cli/output.js';

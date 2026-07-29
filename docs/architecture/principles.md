@@ -3,7 +3,7 @@
 - **Single responsibility:** collection, normalization, evaluation, persistence, and presentation will change for different reasons and belong in separate modules.
 - **Open/closed and substitution:** when real variation exists, narrow ports should let a new source or output adapter replace another without changing domain decisions.
 - **Interface segregation and dependency inversion:** use cases should request only the capabilities they need, and technology adapters should depend on those inward-owned contracts.
-- **KISS and YAGNI:** implement the smallest current behavior. Chunk 0 therefore has boundary markers, not fake services or domain entities.
+- **KISS and YAGNI:** implement the smallest current behavior. Chunk 1 defines configuration contracts and validation, not fake collectors, persistence, or scoring engines.
 - **DRY with clarity:** share stable concepts, not coincidentally similar source-specific behavior.
 - **Composition over inheritance:** assemble collectors, policies, and adapters at boundaries; avoid rigid implementation hierarchies.
 - **Explicit boundaries:** translate external data before it enters domain logic and keep configuration loading separate from evaluation.
