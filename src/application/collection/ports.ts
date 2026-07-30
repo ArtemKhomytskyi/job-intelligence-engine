@@ -31,12 +31,25 @@ export interface HttpRequest {
   readonly signal: AbortSignal;
   readonly rateLimitKey: string;
   readonly minimumIntervalMs: number;
+  readonly maximumResponseBytes?: number;
+  readonly maximumRedirects?: number;
+  readonly allowTestLoopback?: boolean;
 }
 
 export interface HttpJsonResponse<T> {
   readonly data: T;
   readonly status: number;
   readonly attempts: number;
+  readonly finalUrl?: string;
+  readonly redirectCount?: number;
+}
+
+export interface HttpTextResponse {
+  readonly data: string;
+  readonly status: number;
+  readonly attempts: number;
+  readonly finalUrl: string;
+  readonly redirectCount: number;
 }
 
 export interface HttpClient {
@@ -44,6 +57,11 @@ export interface HttpClient {
     request: HttpRequest,
     decoder: JsonDecoder<T>,
   ): Promise<HttpJsonResponse<T>>;
+  getText(request: HttpRequest): Promise<HttpTextResponse>;
+}
+
+export interface UrlSafetyValidator {
+  validate(url: string, allowTestLoopback: boolean): Promise<string>;
 }
 
 export interface Sleeper {

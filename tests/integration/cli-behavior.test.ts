@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { runCli } from '../../src/interfaces/index.js';
+import {
+  createTemporaryConfigDirectory,
+  removeTemporaryConfigDirectory,
+} from '../helpers/config-directory.js';
 
 describe('CLI behavior', () => {
   it('shows help when no command is provided', async () => {
@@ -53,6 +57,34 @@ describe('CLI behavior', () => {
     expect(output.stdout).toEqual([]);
     expect(output.stderr.join('')).toContain('CONFIG_FILE_NOT_FOUND');
     expect(output.stderr.join('')).toContain('4 issues');
+  });
+
+  it('returns a configuration error from the process command before database access', async () => {
+    const output = captureOutput();
+    await expect(
+      runCli(['process', '--config-dir', 'does-not-exist'], output),
+    ).resolves.toBe(2);
+    expect(output.stdout).toEqual([]);
+    expect(output.stderr.join('')).toContain('Configuration contains 4 issues');
+  });
+
+  it('returns a usage error for an invalid process limit', async () => {
+    const directory = await createTemporaryConfigDirectory();
+    try {
+      const output = captureOutput();
+      await expect(
+        runCli(
+          ['process', '--config-dir', directory, '--limit', 'not-a-number'],
+          output,
+        ),
+      ).resolves.toBe(2);
+      expect(output.stdout).toEqual([]);
+      expect(output.stderr.join('')).toContain(
+        'Processing limit must be an integer',
+      );
+    } finally {
+      await removeTemporaryConfigDirectory(directory);
+    }
   });
 });
 

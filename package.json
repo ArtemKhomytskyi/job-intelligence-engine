@@ -31,6 +31,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "playwright:install": "playwright install chromium",
+    "playwright:install:ci": "playwright install --with-deps chromium",
     "prisma:validate": "prisma validate --schema prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:format": "prisma format --schema prisma/schema.prisma",
@@ -47,10 +50,12 @@
     "db:test:migrate": "node scripts/test-database.mjs migrate",
     "test:db": "vitest run --config vitest.db.config.ts",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run prisma:validate && npm run prisma:generate && npm run build",
-    "verify:full": "npm run verify && npm run db:test:migrate && npm run test:db"
+    "verify:full": "npm run verify && npm run test:browser && npm run db:test:migrate && npm run test:db"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
+    "cheerio": "1.2.0",
+    "playwright": "1.62.0",
     "yaml": "2.9.0",
     "zod": "4.4.3"
   },

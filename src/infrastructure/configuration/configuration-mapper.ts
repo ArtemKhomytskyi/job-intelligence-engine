@@ -110,6 +110,24 @@ export function mapSearch(
         ),
         maximumRecommendationsPerCompany:
           preferences.maximumRecommendationsPerCompany,
+        hardFilters: {
+          allowedCountries: preferences.hardFilters.allowedCountries,
+          allowedCountryGroups: preferences.hardFilters.allowedCountryGroups,
+          rejectUnknownLocation: preferences.hardFilters.rejectUnknownLocation,
+          unknownCandidateLanguageLevelPolicy:
+            preferences.hardFilters.unknownCandidateLanguageLevelPolicy,
+          maximumSeniority: preferences.hardFilters.maximumSeniority,
+          maximumRequiredExperienceYears:
+            preferences.hardFilters.maximumRequiredExperienceYears,
+          allowMandatoryPhd: preferences.hardFilters.allowMandatoryPhd,
+          excludedCompanies: preferences.hardFilters.excludedCompanies,
+          excludedIndustries: preferences.hardFilters.excludedIndustries,
+          excludedTitlePhrases: preferences.hardFilters.excludedTitlePhrases,
+          rejectUnknownIndustry: preferences.hardFilters.rejectUnknownIndustry,
+          removableTrackingParameters:
+            preferences.hardFilters.removableTrackingParameters,
+          companyLegalSuffixes: preferences.hardFilters.companyLegalSuffixes,
+        },
       },
     };
   } catch (cause: unknown) {
@@ -179,11 +197,31 @@ export function mapSources(document: SourcesDocument): readonly SourceConfig[] {
           },
         };
       case 'generic-jsonld':
-      case 'generic-page':
         return {
           ...common,
           type: source.type,
           settings: { url: source.settings.url },
+        };
+      case 'generic-page':
+      case 'generic-job-list':
+        return {
+          ...common,
+          type: source.type,
+          settings: {
+            url: source.settings.url,
+            ...(source.settings.browserTimeoutMs === undefined
+              ? {}
+              : { browserTimeoutMs: source.settings.browserTimeoutMs }),
+            ...(source.settings.maxDiscoveredLinks === undefined
+              ? {}
+              : { maxDiscoveredLinks: source.settings.maxDiscoveredLinks }),
+            ...(source.settings.maxTraversalDepth === undefined
+              ? {}
+              : { maxTraversalDepth: source.settings.maxTraversalDepth }),
+            ...(source.settings.allowBrowserFallback === undefined
+              ? {}
+              : { allowBrowserFallback: source.settings.allowBrowserFallback }),
+          },
         };
     }
   });

@@ -101,7 +101,7 @@ describe('collection core', () => {
     expect(() =>
       toCollectableSources([], { sourceIds: new Set(['missing']) }),
     ).toThrowError(/does not exist/);
-    expect(() =>
+    expect(
       toCollectableSources([
         {
           id: 'x',
@@ -112,8 +112,8 @@ describe('collection core', () => {
           trackIds: [],
           settings: { url: 'https://example.test' },
         },
-      ]),
-    ).toThrowError(/No enabled supported/);
+      ])[0],
+    ).toMatchObject({ type: 'generic-page', url: 'https://example.test' });
   });
 
   it('handles entity, localhost, timestamp and optional normalization branches', () => {

@@ -28,6 +28,18 @@ export const languageCodeSchema = z
     'Use a two- or three-letter lowercase language code.',
   );
 export const urlSchema = z.url();
+export const publicHttpsUrlSchema = z.url().refine(
+  (value) => {
+    try {
+      return new URL(value).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  },
+  {
+    message: 'Use a public HTTPS URL.',
+  },
+);
 export const percentageSchema = z.number().finite().min(0).max(100);
 
 export const experienceRangeSchema = z.strictObject({

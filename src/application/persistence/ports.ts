@@ -16,6 +16,7 @@ import type {
   StatusUpdate,
   StatusUpdateResult,
 } from './models.js';
+import type { ProcessingRepository } from '../processing/ports.js';
 
 export interface JobSourceRepository {
   upsert(input: JobSourceWrite): Promise<PersistedJobSource>;
@@ -59,6 +60,7 @@ export interface PersistenceRepositories {
   readonly scores: ScoreRepository;
   readonly recommendations: RecommendationRepository;
   readonly collectionRuns: CollectionRunRepository;
+  readonly processing: ProcessingRepository;
 }
 
 export interface PersistenceTransactionManager {

@@ -6,6 +6,7 @@ import {
 } from './database-command.js';
 import { formatHelp } from './output.js';
 import { runCollect } from './collect-command.js';
+import { runProcess } from './process-command.js';
 import {
   type CommandOutput,
   runValidateConfig,
@@ -28,6 +29,7 @@ export async function runCli(
         source: { type: 'string', multiple: true, default: [] },
         type: { type: 'string' },
         concurrency: { type: 'string', default: '3' },
+        limit: { type: 'string', default: '1000' },
         verbose: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
@@ -59,6 +61,19 @@ export async function runCli(
             ? {}
             : { sourceType: parsed.values.type }),
           concurrency: Number(parsed.values.concurrency),
+          verbose: parsed.values.verbose,
+          asJson: parsed.values.json,
+          signal,
+        },
+        output,
+      );
+    }
+
+    if (command === 'process') {
+      return runProcess(
+        {
+          configDirectory: parsed.values['config-dir'] ?? 'config',
+          limit: Number(parsed.values.limit),
           verbose: parsed.values.verbose,
           asJson: parsed.values.json,
           signal,

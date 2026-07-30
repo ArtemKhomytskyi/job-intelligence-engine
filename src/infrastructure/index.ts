@@ -25,3 +25,13 @@ export { SystemClock } from './http/system-clock.js';
 export { GreenhouseCollector } from './collectors/greenhouse-collector.js';
 export { LeverCollector } from './collectors/lever-collector.js';
 export { StreamLogger } from './logging/stream-logger.js';
+export { PublicUrlSafetyValidator } from './http/public-url-safety-validator.js';
+export type { AddressResolver } from './http/public-url-safety-validator.js';
+export { HttpPageAcquirer } from './extraction/http-page-acquirer.js';
+export {
+  CheerioDocumentExtractor,
+  detectAts,
+} from './extraction/cheerio-document-extractor.js';
+export { PlaywrightBrowserRenderer } from './browser/playwright-browser-renderer.js';
+export { shouldBlockBrowserResource } from './browser/resource-policy.js';
+export { Sha256ProcessingHasher } from './crypto/sha256-processing-hasher.js';

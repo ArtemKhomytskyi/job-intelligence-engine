@@ -31,6 +31,8 @@ Run `npm run prisma:migrate:deploy`, `npm run cli -- db:check`, and the guarded 
 
 For configuration changes, run `npm run test:coverage` and `npm run cli -- validate-config --examples`. Keep tracked examples valid together and update `docs/configuration/README.md` when fields or error behavior change.
 
+For generic extraction or browser changes, install the pinned Chromium build with `npm run playwright:install`, run `npm run test:browser`, and keep automated tests fixture-only. Follow [docs/testing/generic-real-site-review.md](docs/testing/generic-real-site-review.md) for separately authorized manual reviews.
+
 ## Security and privacy
 
 Never commit secrets, `.env`, API keys, authentication sessions, browser cookies, CVs, resumes, candidate profiles, email addresses, telephone numbers, private source data, generated reports, or application records. Use synthetic data in tests and documentation.

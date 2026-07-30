@@ -26,6 +26,56 @@ const searchTrackSchema = z.strictObject({
   recommendationQuota: z.number().int().positive().optional(),
 });
 
+const hardFiltersSchema = z.strictObject({
+  allowedCountries: z.array(countryCodeSchema).max(250),
+  allowedCountryGroups: z.array(z.enum(['EU', 'EEA', 'EUROPE'])).max(3),
+  rejectUnknownLocation: z.boolean(),
+  unknownCandidateLanguageLevelPolicy: z.enum(['allow', 'reject']),
+  maximumSeniority: seniorityLevelSchema,
+  maximumRequiredExperienceYears: z.number().finite().min(0).max(80),
+  allowMandatoryPhd: z.boolean(),
+  excludedCompanies: z.array(nonEmptyStringSchema.max(500)).max(1_000),
+  excludedIndustries: z.array(nonEmptyStringSchema.max(500)).max(1_000),
+  excludedTitlePhrases: z.array(nonEmptyStringSchema.max(100)).max(1_000),
+  rejectUnknownIndustry: z.boolean(),
+  removableTrackingParameters: z
+    .array(nonEmptyStringSchema.regex(/^[A-Za-z0-9_.~-]+$/u))
+    .max(100),
+  companyLegalSuffixes: z.array(nonEmptyStringSchema.max(30)).max(100),
+});
+
+const defaultHardFilters: z.input<typeof hardFiltersSchema> = {
+  allowedCountries: [],
+  allowedCountryGroups: [],
+  rejectUnknownLocation: false,
+  unknownCandidateLanguageLevelPolicy: 'allow',
+  maximumSeniority: 'executive',
+  maximumRequiredExperienceYears: 80,
+  allowMandatoryPhd: true,
+  excludedCompanies: [],
+  excludedIndustries: [],
+  excludedTitlePhrases: [],
+  rejectUnknownIndustry: false,
+  removableTrackingParameters: [
+    'utm_source',
+    'utm_medium',
+    'utm_campaign',
+    'utm_term',
+    'utm_content',
+  ],
+  companyLegalSuffixes: [
+    'Ltd',
+    'Limited',
+    'LLC',
+    'Inc',
+    'Incorporated',
+    'GmbH',
+    'AG',
+    'BV',
+    'PLC',
+  ],
+};
+
 export const searchSchema = z.strictObject({
   tracks: z.array(searchTrackSchema).min(1),
   preferences: z.strictObject({
@@ -43,6 +93,7 @@ export const searchSchema = z.strictObject({
     dailyRecommendationLimit: z.number().int().positive(),
     minimumAcceptableScore: percentageSchema,
     maximumRecommendationsPerCompany: z.number().int().positive(),
+    hardFilters: hardFiltersSchema.default(defaultHardFilters),
   }),
 });
 

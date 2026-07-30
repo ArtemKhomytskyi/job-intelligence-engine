@@ -65,4 +65,43 @@ describe('configuration schemas', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('validates generic source URL and resource bounds', () => {
+    const generic = {
+      id: 'generic-list',
+      type: 'generic-job-list',
+      enabled: true,
+      displayName: 'Generic list',
+      tags: [],
+      trackIds: [],
+      settings: {
+        url: 'https://careers.example.test/jobs',
+        browserTimeoutMs: 3_000,
+        maxDiscoveredLinks: 1,
+        maxTraversalDepth: 0,
+        allowBrowserFallback: false,
+      },
+    };
+    expect(sourcesSchema.safeParse({ sources: [generic] }).success).toBe(true);
+    expect(
+      sourcesSchema.safeParse({
+        sources: [
+          {
+            ...generic,
+            settings: { ...generic.settings, url: 'http://10.0.0.1/jobs' },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      sourcesSchema.safeParse({
+        sources: [
+          {
+            ...generic,
+            settings: { ...generic.settings, maxDiscoveredLinks: 201 },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
 });

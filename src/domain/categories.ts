@@ -12,9 +12,12 @@ export const SENIORITY_LEVELS = [
   'entry',
   'mid',
   'senior',
+  'staff',
+  'principal',
   'lead',
   'manager',
   'director',
+  'vp',
   'executive',
 ] as const;
 export type SeniorityLevel = (typeof SENIORITY_LEVELS)[number];
@@ -54,6 +57,7 @@ export const SOURCE_TYPES = [
   'lever',
   'generic-jsonld',
   'generic-page',
+  'generic-job-list',
 ] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
