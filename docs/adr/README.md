@@ -14,3 +14,4 @@ Accepted records remain in place when superseded; a later ADR should link to and
 - [0008: Store current status plus immutable history and test against PostgreSQL](0008-status-history-and-real-database-tests.md)
 - [0009: Keep collection contracts and resilience policy inward-owned](0009-application-owned-collection-boundaries.md)
 - [0010: Use static-first bounded generic web extraction](0010-bounded-generic-web-extraction.md)
+- [0011: Process versioned stored job snapshots without destructive merging](0011-versioned-job-processing-decisions.md)

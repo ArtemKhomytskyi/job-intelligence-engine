@@ -13,6 +13,8 @@ import {
   GenericWebCollector,
   saveRecommendation,
   saveScore,
+  ProcessCollectedJobs,
+  TransactionalProcessingRepository,
   updateJobStatus,
   upsertJob,
   upsertJobSource,
@@ -21,11 +23,15 @@ import {
   type BrowserPageRenderer,
   type HtmlPageAcquirer,
 } from '../../src/application/index.js';
-import type { NormalizedJobPosting } from '../../src/domain/index.js';
+import {
+  normalizeJobForProcessing,
+  type NormalizedJobPosting,
+} from '../../src/domain/index.js';
 import {
   CheerioDocumentExtractor,
   createPrismaClient,
   PrismaTransactionManager,
+  Sha256ProcessingHasher,
 } from '../../src/infrastructure/index.js';
 
 let client: PrismaClient;
@@ -42,6 +48,8 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await client.jobProcessingDecision.deleteMany();
+  await client.jobProcessingRun.deleteMany();
   await client.recommendation.deleteMany();
   await client.scoreComponent.deleteMany();
   await client.jobScore.deleteMany();
@@ -56,6 +64,260 @@ beforeEach(async () => {
 });
 
 describe('PostgreSQL persistence repositories', () => {
+  it('persists normalized processing decisions and skips an identical rerun', async () => {
+    await persistSource('source-a', 'Source A');
+    await upsertJob(
+      transactions,
+      makePosting({
+        description: 'Required: 5+ years of experience. German C1 required.',
+      }),
+    );
+    const processor = new ProcessCollectedJobs(
+      new TransactionalProcessingRepository(transactions),
+      { now: () => new Date('2026-07-29T12:00:00.000Z') },
+      { debug() {}, info() {}, warn() {}, error() {} },
+      new Sha256ProcessingHasher(),
+    );
+    const input = {
+      limit: 10,
+      initiatedBy: 'database-test',
+      candidate: {
+        id: 'synthetic-candidate',
+        displayName: 'Synthetic Candidate',
+        education: [],
+        professionalExperienceSummary: 'Synthetic.',
+        skills: [],
+        languages: [],
+        citizenships: ['DE'],
+        workAuthorizations: [{ country: 'DE', status: 'citizen' as const }],
+        preferredEmploymentTypes: ['full-time' as const],
+        location: {
+          country: 'DE',
+          willingToRelocate: false,
+          relocationCountries: [],
+        },
+      },
+      hardFilters: {
+        allowedCountries: ['DE'],
+        allowedCountryGroups: ['EU' as const],
+        rejectUnknownLocation: false,
+        unknownCandidateLanguageLevelPolicy: 'reject' as const,
+        maximumSeniority: 'mid' as const,
+        maximumRequiredExperienceYears: 3,
+        allowMandatoryPhd: false,
+        excludedCompanies: [],
+        excludedIndustries: [],
+        excludedTitlePhrases: [],
+        rejectUnknownIndustry: false,
+        removableTrackingParameters: ['utm_source'],
+        companyLegalSuffixes: ['GmbH'],
+      },
+      signal: new AbortController().signal,
+    };
+
+    const first = await processor.execute(input);
+    const second = await processor.execute(input);
+    const decision = await client.jobProcessingDecision.findFirstOrThrow();
+    const storedJob = await client.job.findFirstOrThrow();
+
+    expect(first).toMatchObject({ rejectedCount: 1, skippedCount: 0 });
+    expect(second).toMatchObject({ rejectedCount: 0, skippedCount: 1 });
+    expect(decision).toMatchObject({
+      processingStatus: 'REJECTED',
+      hardFilterDecision: 'REJECTED',
+      fingerprintVersion: 1,
+    });
+    expect(decision.hardFilterReasons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'MISSING_REQUIRED_LANGUAGE' }),
+        expect.objectContaining({ code: 'EXPERIENCE_EXCEEDS_MAXIMUM' }),
+      ]),
+    );
+    expect(storedJob).toMatchObject({
+      normalizationVersion: 'normalization-v1',
+      normalizedLocationKey: 'hybrid|unspecified|de::berlin',
+    });
+    expect(storedJob.normalizedPayload).not.toBeNull();
+    expect(await client.jobProcessingRun.findFirst()).toMatchObject({
+      fingerprintVersion: 1,
+      skippedCount: 0,
+    });
+
+    await processor.execute({
+      ...input,
+      hardFilters: {
+        ...input.hardFilters,
+        maximumRequiredExperienceYears: 6,
+      },
+    });
+    expect(await client.jobProcessingDecision.count()).toBe(2);
+    await upsertJob(
+      transactions,
+      makePosting({
+        title: 'Updated Platform Engineer',
+        description: 'Required: 5+ years of experience. German C1 required.',
+        collectedAt: '2026-07-29T13:00:00.000Z',
+      }),
+    );
+    await processor.execute(input);
+    expect(await client.jobProcessingDecision.count()).toBe(3);
+    expect(
+      await client.jobProcessingDecision.count({
+        where: { inputRevisionNumber: 1 },
+      }),
+    ).toBe(1);
+  });
+
+  it('prevents concurrent duplicate decisions with PostgreSQL uniqueness', async () => {
+    await persistSource('source-a', 'Source A');
+    await upsertJob(transactions, makePosting());
+    const makeProcessor = () =>
+      new ProcessCollectedJobs(
+        new TransactionalProcessingRepository(transactions),
+        { now: () => new Date('2026-07-29T12:00:00.000Z') },
+        { debug() {}, info() {}, warn() {}, error() {} },
+        new Sha256ProcessingHasher(),
+      );
+    const input = processingInput();
+    const summaries = await Promise.all([
+      makeProcessor().execute(input),
+      makeProcessor().execute(input),
+    ]);
+    expect(await client.jobProcessingDecision.count()).toBe(1);
+    expect(summaries.reduce((sum, item) => sum + item.skippedCount, 0)).toBe(1);
+    expect(summaries.reduce((sum, item) => sum + item.eligibleCount, 0)).toBe(
+      1,
+    );
+  });
+
+  it('rolls back normalized state and its decision together', async () => {
+    await persistSource('source-a', 'Source A');
+    await upsertJob(
+      transactions,
+      makePosting({ title: 'Senior Platform Engineer' }),
+    );
+    const processable = await transactions.execute((repositories) =>
+      repositories.processing.listProcessableJobs(1),
+    );
+    const normalized = normalizeJobForProcessing(
+      processable[0]!,
+      processingInput().hardFilters,
+      '2026-07-29T12:00:00.000Z',
+    );
+    expect(normalized.status).toBe('SUCCESS');
+    if (normalized.status !== 'SUCCESS') return;
+    const run = await transactions.execute((repositories) =>
+      repositories.processing.createRun({
+        startedAt: '2026-07-29T12:00:00.000Z',
+        initiatedBy: 'rollback-test',
+        normalizationVersion: 'normalization-v1',
+        fingerprintVersion: 1,
+        filterRulesVersion: 'hard-filters-v1',
+        configFingerprint: 'rollback-config',
+      }),
+    );
+    await expect(
+      transactions.execute(async (repositories) => {
+        await repositories.processing.saveDecision({
+          jobId: normalized.job.id,
+          inputRevisionNumber: normalized.job.inputRevisionNumber,
+          normalizationVersion: 'normalization-v1',
+          fingerprintVersion: 1,
+          filterRulesVersion: 'hard-filters-v1',
+          configFingerprint: 'rollback-config',
+          runId: run.id,
+          processingStatus: 'ELIGIBLE',
+          processedAt: '2026-07-29T12:00:00.000Z',
+          normalizedJob: normalized.job,
+          normalizationIssues: [],
+        });
+        throw new Error('deliberate processing rollback');
+      }),
+    ).rejects.toMatchObject({ code: 'DATABASE_QUERY_FAILED' });
+    expect(await client.jobProcessingDecision.count()).toBe(0);
+    expect(await client.job.findFirstOrThrow()).toMatchObject({
+      normalizedPayload: null,
+      seniority: null,
+    });
+  });
+
+  it('clears stale current normalization fields after a changed revision', async () => {
+    await persistSource('source-a', 'Source A');
+    await upsertJob(
+      transactions,
+      makePosting({
+        title: 'Senior Platform Engineer',
+        description:
+          'A bachelor degree and 5+ years of experience are required.',
+      }),
+    );
+    const processor = new ProcessCollectedJobs(
+      new TransactionalProcessingRepository(transactions),
+      { now: () => new Date('2026-07-29T12:00:00.000Z') },
+      { debug() {}, info() {}, warn() {}, error() {} },
+      new Sha256ProcessingHasher(),
+    );
+    await processor.execute(processingInput());
+    expect(await client.job.findFirstOrThrow()).toMatchObject({
+      seniority: 'senior',
+      requiredEducation: 'bachelor',
+    });
+    await upsertJob(
+      transactions,
+      makePosting({
+        title: 'Platform Engineer',
+        description: 'A synthetic role with no formal requirements.',
+        collectedAt: '2026-07-29T13:00:00.000Z',
+      }),
+    );
+    await processor.execute(processingInput());
+    expect(await client.job.findFirstOrThrow()).toMatchObject({
+      seniority: null,
+      requiredEducation: null,
+      requiredExperience: null,
+    });
+  });
+
+  it('persists acyclic duplicate relationships and protects decision history', async () => {
+    const sharedApplicationUrl = 'https://apply.example.test/shared';
+    await client.job.createMany({
+      data: [
+        {
+          ...directJobData('https://jobs.example.test/duplicate-a'),
+          applicationUrl: sharedApplicationUrl,
+          firstSeenAt: new Date('2026-07-28T10:00:00.000Z'),
+        },
+        {
+          ...directJobData('https://jobs.example.test/duplicate-b'),
+          applicationUrl: sharedApplicationUrl,
+          firstSeenAt: new Date('2026-07-29T10:00:00.000Z'),
+        },
+      ],
+    });
+    await new ProcessCollectedJobs(
+      new TransactionalProcessingRepository(transactions),
+      { now: () => new Date('2026-07-30T12:00:00.000Z') },
+      { debug() {}, info() {}, warn() {}, error() {} },
+      new Sha256ProcessingHasher(),
+    ).execute(processingInput());
+    const duplicate = await client.jobProcessingDecision.findFirstOrThrow({
+      where: { processingStatus: 'DUPLICATE' },
+    });
+    expect(duplicate.primaryJobId).not.toBeNull();
+    expect(duplicate.primaryJobId).not.toBe(duplicate.jobId);
+    if (duplicate.primaryJobId === null)
+      throw new Error('Expected a primary duplicate relationship.');
+    await expect(
+      client.jobProcessingRun.delete({ where: { id: duplicate.runId } }),
+    ).rejects.toBeDefined();
+    await client.job.delete({ where: { id: duplicate.primaryJobId } });
+    expect(
+      await client.jobProcessingDecision.findUniqueOrThrow({
+        where: { id: duplicate.id },
+      }),
+    ).toMatchObject({ primaryJobId: null });
+  });
+
   it('runs the collection orchestration through real repositories', async () => {
     const posting = makePosting();
     const collector: JobCollector = {
@@ -440,6 +702,45 @@ function persistSource(configSourceId: string, displayName: string) {
     enabled: true,
     settings: { url: `https://${configSourceId}.example.test/jobs` },
   });
+}
+
+function processingInput() {
+  return {
+    limit: 10,
+    initiatedBy: 'database-test',
+    candidate: {
+      id: 'synthetic-candidate',
+      displayName: 'Synthetic Candidate',
+      education: [],
+      professionalExperienceSummary: 'Synthetic.',
+      skills: [],
+      languages: [],
+      citizenships: ['DE'],
+      workAuthorizations: [{ country: 'DE', status: 'citizen' as const }],
+      preferredEmploymentTypes: ['full-time' as const],
+      location: {
+        country: 'DE',
+        willingToRelocate: false,
+        relocationCountries: [],
+      },
+    },
+    hardFilters: {
+      allowedCountries: ['DE'],
+      allowedCountryGroups: ['EU' as const],
+      rejectUnknownLocation: false,
+      unknownCandidateLanguageLevelPolicy: 'reject' as const,
+      maximumSeniority: 'mid' as const,
+      maximumRequiredExperienceYears: 3,
+      allowMandatoryPhd: false,
+      excludedCompanies: [],
+      excludedIndustries: [],
+      excludedTitlePhrases: [],
+      rejectUnknownIndustry: false,
+      removableTrackingParameters: ['utm_source'],
+      companyLegalSuffixes: ['GmbH'],
+    },
+    signal: new AbortController().signal,
+  } as const;
 }
 
 function makePosting(

@@ -21,3 +21,8 @@ export * from './persistence/fingerprint.js';
 export * from './persistence/models.js';
 export * from './persistence/ports.js';
 export * from './persistence/use-cases.js';
+export * from './processing/models.js';
+export * from './processing/ports.js';
+export * from './processing/fingerprints.js';
+export * from './processing/process-collected-jobs.js';
+export * from './processing/transactional-processing-repository.js';

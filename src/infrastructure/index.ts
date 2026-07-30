@@ -34,3 +34,4 @@ export {
 } from './extraction/cheerio-document-extractor.js';
 export { PlaywrightBrowserRenderer } from './browser/playwright-browser-renderer.js';
 export { shouldBlockBrowserResource } from './browser/resource-policy.js';
+export { Sha256ProcessingHasher } from './crypto/sha256-processing-hasher.js';

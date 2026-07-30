@@ -10,6 +10,7 @@ import {
   PrismaJobRepository,
   PrismaJobSourceRepository,
   PrismaRecommendationRepository,
+  PrismaProcessingRepository,
   PrismaScoreRepository,
   type PrismaRepositoryClient,
 } from './repositories.js';
@@ -23,6 +24,7 @@ export function createPrismaRepositories(
     scores: new PrismaScoreRepository(client),
     recommendations: new PrismaRecommendationRepository(client),
     collectionRuns: new PrismaCollectionRunRepository(client),
+    processing: new PrismaProcessingRepository(client),
   };
 }
 

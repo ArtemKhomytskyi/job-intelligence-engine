@@ -4,3 +4,4 @@ export {
   formatConfigurationSummary,
   formatHelp,
 } from './cli/output.js';
+export { formatProcessingSummary } from './cli/process-command.js';

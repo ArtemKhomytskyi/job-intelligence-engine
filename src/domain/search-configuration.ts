@@ -38,6 +38,26 @@ export interface SearchPreferences {
   readonly dailyRecommendationLimit: number;
   readonly minimumAcceptableScore: Percentage;
   readonly maximumRecommendationsPerCompany: number;
+  readonly hardFilters: HardFilterConfiguration;
+}
+
+export type CountryGroup = 'EU' | 'EEA' | 'EUROPE';
+export type UnknownCandidateLanguageLevelPolicy = 'allow' | 'reject';
+
+export interface HardFilterConfiguration {
+  readonly allowedCountries: readonly string[];
+  readonly allowedCountryGroups: readonly CountryGroup[];
+  readonly rejectUnknownLocation: boolean;
+  readonly unknownCandidateLanguageLevelPolicy: UnknownCandidateLanguageLevelPolicy;
+  readonly maximumSeniority: SeniorityLevel;
+  readonly maximumRequiredExperienceYears: number;
+  readonly allowMandatoryPhd: boolean;
+  readonly excludedCompanies: readonly string[];
+  readonly excludedIndustries: readonly string[];
+  readonly excludedTitlePhrases: readonly string[];
+  readonly rejectUnknownIndustry: boolean;
+  readonly removableTrackingParameters: readonly string[];
+  readonly companyLegalSuffixes: readonly string[];
 }
 
 export interface SearchConfiguration {
