@@ -11,6 +11,7 @@ export default defineConfig({
         'src/infrastructure/browser/playwright-browser-renderer.ts',
         'src/interfaces/cli/database-command.ts',
         'src/interfaces/cli/collect-command.ts',
+        'src/interfaces/cli/process-command.ts',
         'src/interfaces/cli/main.ts',
       ],
       include: ['src/**/*.ts'],

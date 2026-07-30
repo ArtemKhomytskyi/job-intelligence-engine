@@ -1,6 +1,6 @@
 # Architecture overview
 
-Job Intelligence Engine is intended to discover and evaluate job opportunities locally, with user-controlled configuration and explainable outcomes. Chunk 4 adds static-first generic web extraction and bounded Chromium fallback to the existing configuration, persistence, and ATS collection foundation. Filtering, scoring calculations, recommendation selection, APIs, and UI remain out of scope.
+Job Intelligence Engine is intended to discover and evaluate job opportunities locally, with user-controlled configuration and explainable outcomes. Chunk 5 adds versioned normalization, conservative deduplication, and deterministic hard filters to the collection foundation. Scoring calculations, recommendation selection, APIs, and UI remain out of scope.
 
 The local-first model keeps configuration, candidate information, and derived records on infrastructure controlled by the user. Optional external integrations may later cross explicit adapters, but core evaluation must remain usable without a cloud service.
 
@@ -18,4 +18,4 @@ Future source collectors and output adapters should be replaceable implementatio
 
 Accepted design choices and their trade-offs are recorded in the [architecture decision records](../adr/README.md).
 
-The current domain vocabulary is described in [domain-model.md](domain-model.md), storage in [storage.md](storage.md), generic extraction in [generic-web-extraction.md](generic-web-extraction.md), configuration under [docs/configuration](../configuration/README.md), and database operations under [docs/database](../database/README.md).
+The current domain vocabulary is described in [domain-model.md](domain-model.md), processing in [job-processing.md](job-processing.md), storage in [storage.md](storage.md), generic extraction in [generic-web-extraction.md](generic-web-extraction.md), configuration under [docs/configuration](../configuration/README.md), and database operations under [docs/database](../database/README.md).

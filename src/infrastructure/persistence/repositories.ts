@@ -16,6 +16,14 @@ import type {
   PersistedRecommendation,
   PersistedScore,
   PersistedStatusHistory,
+  PersistedProcessingRun,
+  ProcessingDecisionLookup,
+  ProcessingDecisionKey,
+  ProcessingDecisionWrite,
+  ProcessingRepository,
+  ProcessingRunCompletion,
+  ProcessingRunWrite,
+  ProcessingSaveOutcome,
   RecommendationRepository,
   RecommendationWrite,
   ScoreRepository,
@@ -24,7 +32,15 @@ import type {
   StatusUpdateResult,
 } from '../../application/index.js';
 import { PersistenceError } from '../../application/index.js';
-import { isJobStatus } from '../../domain/index.js';
+import {
+  EMPLOYMENT_TYPES,
+  isJobStatus,
+  REMOTE_POLICIES,
+  type EmploymentType,
+  type JobLocation,
+  type JsonValue,
+  type RemotePolicy,
+} from '../../domain/index.js';
 import {
   mapJob,
   mapJobSource,
@@ -95,6 +111,216 @@ export class PrismaJobSourceRepository implements JobSourceRepository {
       where: { configSourceId },
     });
     return record === null ? undefined : mapJobSource(record);
+  }
+}
+
+export class PrismaProcessingRepository implements ProcessingRepository {
+  public constructor(private readonly client: PrismaRepositoryClient) {}
+
+  public async listProcessableJobs(
+    limit: number,
+  ): Promise<readonly import('../../domain/index.js').ProcessableJob[]> {
+    const records = await this.client.job.findMany({
+      take: limit,
+      orderBy: [{ lastCollectedAt: 'asc' }, { id: 'asc' }],
+      include: {
+        sourceReferences: {
+          orderBy: [{ firstSeenAt: 'asc' }, { id: 'asc' }],
+          take: 1,
+          include: { source: { select: { configSourceId: true } } },
+        },
+        revisions: {
+          orderBy: { revisionNumber: 'desc' },
+          take: 1,
+          select: { revisionNumber: true },
+        },
+      },
+    });
+    return records.map((record) => {
+      const reference = record.sourceReferences[0];
+      const metadata = optionalJson(record.metadata);
+      return {
+        id: record.id,
+        ...(reference === undefined
+          ? {}
+          : {
+              sourceId: reference.source.configSourceId,
+              ...(reference.externalId === null
+                ? {}
+                : { externalId: reference.externalId }),
+            }),
+        sourceUrl: reference?.sourceUrl ?? record.canonicalUrl,
+        canonicalUrl: record.canonicalUrl,
+        ...(record.applicationUrl === null
+          ? {}
+          : { applicationUrl: record.applicationUrl }),
+        title: record.title,
+        company: record.company,
+        ...(record.description === null
+          ? {}
+          : { description: record.description }),
+        locations: processingLocations(record.locations),
+        ...(record.remotePolicy === null
+          ? {}
+          : { remotePolicy: processingRemotePolicy(record.remotePolicy) }),
+        ...(record.employmentType === null
+          ? {}
+          : {
+              employmentType: processingEmploymentType(record.employmentType),
+            }),
+        ...(record.salaryMinimum === null
+          ? {}
+          : { salaryMinimum: record.salaryMinimum.toNumber() }),
+        ...(record.salaryMaximum === null
+          ? {}
+          : { salaryMaximum: record.salaryMaximum.toNumber() }),
+        ...(record.salaryCurrency === null
+          ? {}
+          : { salaryCurrency: record.salaryCurrency }),
+        ...(record.salaryPeriod === null
+          ? {}
+          : { salaryPeriod: record.salaryPeriod }),
+        ...(record.publishedAt === null
+          ? {}
+          : { publishedAt: record.publishedAt.toISOString() }),
+        ...(record.expiresAt === null
+          ? {}
+          : { expiresAt: record.expiresAt.toISOString() }),
+        firstSeenAt: record.firstSeenAt.toISOString(),
+        lastCollectedAt: record.lastCollectedAt.toISOString(),
+        ...(metadata === undefined || !isJsonObject(metadata)
+          ? {}
+          : { metadata }),
+        inputRevisionNumber: record.revisions[0]?.revisionNumber ?? 0,
+      };
+    });
+  }
+
+  public async createRun(
+    input: ProcessingRunWrite,
+  ): Promise<PersistedProcessingRun> {
+    const record = await this.client.jobProcessingRun.create({
+      data: {
+        startedAt: parseTimestamp(input.startedAt, 'startedAt'),
+        status: 'RUNNING',
+        initiatedBy: input.initiatedBy,
+        normalizationVersion: input.normalizationVersion,
+        fingerprintVersion: input.fingerprintVersion,
+        filterRulesVersion: input.filterRulesVersion,
+        configFingerprint: input.configFingerprint,
+      },
+    });
+    return { ...input, id: record.id };
+  }
+
+  public async listExistingDecisionKeys(
+    input: ProcessingDecisionLookup,
+  ): Promise<readonly ProcessingDecisionKey[]> {
+    if (input.jobIds.length === 0) return [];
+    return this.client.jobProcessingDecision.findMany({
+      where: {
+        jobId: { in: [...input.jobIds] },
+        normalizationVersion: input.normalizationVersion,
+        fingerprintVersion: input.fingerprintVersion,
+        filterRulesVersion: input.filterRulesVersion,
+        configFingerprint: input.configFingerprint,
+      },
+      select: {
+        jobId: true,
+        inputRevisionNumber: true,
+        normalizationVersion: true,
+        fingerprintVersion: true,
+        filterRulesVersion: true,
+        configFingerprint: true,
+      },
+    });
+  }
+
+  public async saveDecision(
+    input: ProcessingDecisionWrite,
+  ): Promise<ProcessingSaveOutcome> {
+    const duplicate = input.duplicateDecision;
+    const filter = input.hardFilterResult;
+    const data: Prisma.JobProcessingDecisionCreateManyInput = {
+      jobId: input.jobId,
+      runId: input.runId,
+      primaryJobId:
+        duplicate?.decision === 'DUPLICATE' ? duplicate.primaryJobId : null,
+      processingStatus: input.processingStatus,
+      inputRevisionNumber: input.inputRevisionNumber,
+      normalizationVersion: input.normalizationVersion,
+      fingerprintVersion: input.fingerprintVersion,
+      filterRulesVersion: input.filterRulesVersion,
+      configFingerprint: input.configFingerprint,
+      processingFingerprint: input.processingFingerprint ?? null,
+      duplicateDecision: duplicate?.decision ?? null,
+      duplicateEvidence:
+        duplicate === undefined
+          ? Prisma.JsonNull
+          : toPrismaJson(duplicate.evidence),
+      hardFilterDecision: filter?.decision ?? null,
+      hardFilterReasons:
+        filter === undefined ? Prisma.JsonNull : toPrismaJson(filter.reasons),
+      normalizationIssues: toPrismaJson(input.normalizationIssues),
+      errorCode: input.errorCode ?? null,
+      errorMessage: input.errorMessage ?? null,
+      processedAt: parseTimestamp(input.processedAt, 'processedAt'),
+    };
+    const created = await this.client.jobProcessingDecision.createMany({
+      data,
+      skipDuplicates: true,
+    });
+    if (created.count === 0) return 'ALREADY_EXISTS';
+    if (input.normalizedJob !== undefined) {
+      const job = input.normalizedJob;
+      const requiredEducation = job.educationRequirements.find(
+        (requirement) => requirement.requirement === 'REQUIRED',
+      );
+      await this.client.job.update({
+        where: { id: input.jobId },
+        data: {
+          normalizedTitle: job.normalizedTitle,
+          normalizedCompany: job.normalizedCompany,
+          normalizedLocationKey: job.location.normalizedKey,
+          canonicalApplicationUrl: job.canonicalApplicationUrl,
+          normalizationVersion: job.normalizationVersion,
+          normalizedAt: parseTimestamp(job.normalizedAt, 'normalizedAt'),
+          normalizationIssues: toPrismaJson(input.normalizationIssues),
+          normalizedPayload: toPrismaJson(job),
+          seniority: job.seniority ?? null,
+          requiredExperience:
+            job.experienceRequirements.length === 0
+              ? Prisma.DbNull
+              : toPrismaJson(job.experienceRequirements),
+          requiredEducation: requiredEducation?.level ?? null,
+          requiredLanguages: toPrismaJson(job.languageRequirements),
+          skills: toPrismaJson(job.skillRequirements),
+          normalizedSkills: toPrismaJson(
+            job.skillRequirements.map((skill) => skill.canonicalName),
+          ),
+        },
+      });
+    }
+    return 'CREATED';
+  }
+
+  public async completeRun(input: ProcessingRunCompletion): Promise<void> {
+    await this.client.jobProcessingRun.update({
+      where: { id: input.runId },
+      data: {
+        completedAt: parseTimestamp(input.completedAt, 'completedAt'),
+        status: input.status,
+        consideredCount: input.consideredCount,
+        normalizedCount: input.normalizedCount,
+        normalizationFailedCount: input.normalizationFailedCount,
+        duplicateCount: input.duplicateCount,
+        possibleDuplicateCount: input.possibleDuplicateCount,
+        rejectedCount: input.rejectedCount,
+        eligibleCount: input.eligibleCount,
+        errorCount: input.errorCount,
+        skippedCount: input.skippedCount,
+      },
+    });
   }
 }
 
@@ -764,4 +990,47 @@ function jsonStringArray(value: unknown, field: string): readonly string[] {
     );
   }
   return json;
+}
+
+function processingLocations(value: unknown): readonly JobLocation[] {
+  const json = fromPrismaJson(value);
+  if (!Array.isArray(json))
+    throw new PersistenceError(
+      'DATA_MAPPING_FAILED',
+      'Job locations must be an array.',
+    );
+  return json.map((item: JsonValue) => {
+    if (!isJsonObject(item) || typeof item['country'] !== 'string')
+      throw new PersistenceError(
+        'DATA_MAPPING_FAILED',
+        'Job location must contain a country string.',
+      );
+    return {
+      country: item['country'],
+      ...(typeof item['city'] === 'string' ? { city: item['city'] } : {}),
+      ...(typeof item['region'] === 'string' ? { region: item['region'] } : {}),
+    };
+  });
+}
+
+function processingRemotePolicy(value: string): RemotePolicy {
+  if ((REMOTE_POLICIES as readonly string[]).includes(value))
+    return value as RemotePolicy;
+  throw new PersistenceError(
+    'DATA_MAPPING_FAILED',
+    'Job contains an unknown remote policy.',
+  );
+}
+
+function processingEmploymentType(value: string): EmploymentType {
+  if ((EMPLOYMENT_TYPES as readonly string[]).includes(value))
+    return value as EmploymentType;
+  throw new PersistenceError(
+    'DATA_MAPPING_FAILED',
+    'Job contains an unknown employment type.',
+  );
+}
+
+function isJsonObject(value: JsonValue): value is Record<string, JsonValue> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
