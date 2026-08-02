@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { chromium } from 'playwright';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -11,13 +12,18 @@ import {
   ExistingCollectionPersistence,
   GenericExtractionEngine,
   GenericWebCollector,
+  GetRecommendationDetails,
+  GetRecommendationReport,
   saveRecommendation,
   saveScore,
   ProcessCollectedJobs,
+  RunFullPipeline,
+  SingleActivePipelineRunner,
   CreateRecommendations,
   TransactionalProcessingRepository,
   TransactionalRecommendationBatchRepository,
   updateJobStatus,
+  UpdateJobApplicationStatus,
   upsertJob,
   upsertJobSource,
   type ScoreWrite,
@@ -36,8 +42,12 @@ import {
   CheerioDocumentExtractor,
   createPrismaClient,
   PrismaTransactionManager,
+  PrismaRecommendationReportRepository,
+  PrismaDatabaseHealth,
+  NodeLocalServer,
   Sha256ProcessingHasher,
 } from '../../src/infrastructure/index.js';
+import { createLocalReportHandler } from '../../src/interfaces/web/local-report-handler.js';
 
 let client: PrismaClient;
 let clientForCleanup: PrismaClient | undefined;
@@ -101,6 +111,232 @@ describe('PostgreSQL persistence repositories', () => {
     expect(await client.recommendationBatch.count()).toBe(1);
     expect(await client.recommendation.count()).toBe(1);
     expect(await client.jobScore.count()).toBe(1);
+  });
+
+  it('loads complete reports and persists automatic and explicit application status', async () => {
+    await persistSource('source-a', 'Source A');
+    await upsertJob(transactions, makePosting());
+    await new ProcessCollectedJobs(
+      new TransactionalProcessingRepository(transactions),
+      { now: () => new Date('2026-07-30T10:00:00.000Z') },
+      { debug() {}, info() {}, warn() {}, error() {} },
+      new Sha256ProcessingHasher(),
+    ).execute(processingInput());
+    await new CreateRecommendations(
+      new TransactionalRecommendationBatchRepository(transactions),
+      { now: () => new Date('2026-07-30T12:00:00.000Z') },
+      new Sha256ProcessingHasher(),
+    ).execute(recommendationInput());
+
+    const repository = new PrismaRecommendationReportRepository(client);
+    const report = await new GetRecommendationReport(repository).execute({
+      sort: 'rank',
+    });
+    expect(report.batch).toMatchObject({
+      selectedCount: 1,
+      requestedLimit: 20,
+    });
+    expect(report.items[0]).toMatchObject({
+      rank: 1,
+      title: 'Platform Engineer',
+      company: 'Example Labs',
+      currentStatus: 'NEW',
+    });
+    const recommendationId = report.items[0]?.recommendationId;
+    if (recommendationId === undefined)
+      throw new Error('Expected a report recommendation.');
+
+    const updater = new UpdateJobApplicationStatus(
+      repository,
+      { now: () => new Date('2026-07-30T13:00:00.000Z') },
+      { debug() {}, info() {}, warn() {}, error() {} },
+    );
+    const detailsService = new GetRecommendationDetails(repository, updater);
+    const viewed = await detailsService.execute(recommendationId);
+    expect(viewed).toMatchObject({
+      currentStatus: 'VIEWED',
+      originalTitle: 'Platform Engineer',
+      selectedTrackId: 'platform',
+    });
+    expect(viewed.components).toHaveLength(13);
+    expect(viewed.description).toBe('Synthetic role description');
+    await detailsService.execute(recommendationId);
+    expect(await client.jobStatusHistory.count()).toBe(2);
+
+    await updater.execute(recommendationId, 'APPLIED');
+    await detailsService.execute(recommendationId);
+    expect(await client.jobStatusHistory.count()).toBe(3);
+    expect(
+      await client.job.findFirstOrThrow({ select: { currentStatus: true } }),
+    ).toEqual({ currentStatus: 'APPLIED' });
+
+    const reloaded = await new GetRecommendationReport(
+      new PrismaRecommendationReportRepository(client),
+    ).execute({ sort: 'status-updated-desc' });
+    expect(reloaded.items[0]?.currentStatus).toBe('APPLIED');
+    expect(reloaded.latestState?.processing).toBeDefined();
+    expect(reloaded.latestState?.recommendations).toBeDefined();
+  });
+
+  it('runs the full fixture pipeline, serves it, updates status in a browser, and verifies PostgreSQL', async () => {
+    const posting = makePosting({
+      description:
+        '<strong>Persisted as text</strong> synthetic end-to-end role.',
+    });
+    const collector: JobCollector = {
+      sourceType: 'greenhouse',
+      collect: () =>
+        Promise.resolve({
+          sourceId: 'source-a',
+          sourceType: 'greenhouse',
+          requestCount: 1,
+          rawJobCount: 1,
+          invalidJobCount: 0,
+          warnings: [],
+          candidates: [posting],
+          durationMs: 1,
+        }),
+    };
+    const noOpLogger = { debug() {}, info() {}, warn() {}, error() {} };
+    const config = recommendationInput();
+    const pipeline = new SingleActivePipelineRunner(
+      new RunFullPipeline({
+        configuration: {
+          load: () =>
+            Promise.resolve({
+              candidate: config.candidate,
+              search: config.search,
+              scoring: config.scoring,
+              sources: config.sources,
+            }),
+        },
+        collection: {
+          execute: (input) =>
+            new CollectionOrchestrator({
+              registry: new CollectorRegistry([collector]),
+              persistence: new ExistingCollectionPersistence(transactions),
+              clock: { now: () => new Date('2026-08-02T10:00:00.000Z') },
+              logger: noOpLogger,
+            }).collect({
+              sources: [
+                {
+                  id: 'source-a',
+                  type: 'greenhouse',
+                  displayName: 'Local fixture source',
+                  enabled: true,
+                  company: 'Example Labs',
+                  requestTimeoutMs: 1_000,
+                  requestsPerSecond: 1,
+                  boardToken: 'fixture',
+                },
+              ],
+              concurrency: input.concurrency,
+              signal: input.signal,
+              initiatedBy: input.initiatedBy,
+            }),
+        },
+        processing: {
+          execute: (input) =>
+            new ProcessCollectedJobs(
+              new TransactionalProcessingRepository(transactions),
+              { now: () => new Date('2026-08-02T10:01:00.000Z') },
+              noOpLogger,
+              new Sha256ProcessingHasher(),
+            ).execute({
+              limit: input.limit,
+              initiatedBy: input.initiatedBy,
+              candidate: input.configuration.candidate,
+              hardFilters: input.configuration.search.preferences.hardFilters,
+              signal: input.signal,
+            }),
+        },
+        recommendations: {
+          execute: (input) =>
+            new CreateRecommendations(
+              new TransactionalRecommendationBatchRepository(transactions),
+              { now: () => input.evaluationTime },
+              new Sha256ProcessingHasher(),
+            ).execute({
+              limit: input.limit,
+              candidate: input.configuration.candidate,
+              search: input.configuration.search,
+              scoring: input.configuration.scoring,
+              sources: input.configuration.sources,
+              signal: input.signal,
+            }),
+        },
+        logger: noOpLogger,
+        clock: { now: () => new Date('2026-08-02T12:01:00.000Z') },
+      }),
+    );
+    const pipelineResult = await pipeline.execute({
+      initiatedBy: 'web',
+      collectionConcurrency: 1,
+      processingLimit: 10,
+      evaluationTime: new Date('2026-08-02T12:00:00.000Z'),
+      signal: new AbortController().signal,
+    });
+    expect(pipelineResult).toMatchObject({
+      collection: { createdJobs: 1 },
+      processing: { eligibleCount: 1 },
+      recommendations: { selectedCount: 1 },
+    });
+
+    const repository = new PrismaRecommendationReportRepository(client);
+    const updater = new UpdateJobApplicationStatus(
+      repository,
+      { now: () => new Date('2026-08-02T13:00:00.000Z') },
+      noOpLogger,
+    );
+    const runtime = {
+      pipeline,
+      getReport: new GetRecommendationReport(repository),
+      getDetails: new GetRecommendationDetails(repository, updater),
+      updateStatus: updater,
+      health: new PrismaDatabaseHealth(client),
+    };
+    const server = new NodeLocalServer(
+      createLocalReportHandler({
+        runtime,
+        logger: noOpLogger,
+        pipelineSignal: new AbortController().signal,
+        collectionConcurrency: 1,
+        processingLimit: 10,
+      }),
+    );
+    const address = await server.start('127.0.0.1', 0);
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage();
+      await page.goto(`${address.url}/recommendations`);
+      await page.getByRole('link', { name: 'Details' }).click();
+      await page.getByRole('heading', { name: 'Score breakdown' }).waitFor();
+      await page.getByRole('button', { name: 'Mark applied' }).click();
+      await page.waitForURL(/notice=status-updated/u);
+      expect(
+        await page
+          .getByText('<strong>Persisted as text</strong>', {
+            exact: false,
+          })
+          .count(),
+      ).toBeGreaterThan(0);
+    } finally {
+      await browser.close();
+      await server.close();
+    }
+    expect(
+      await client.job.findFirstOrThrow({ select: { currentStatus: true } }),
+    ).toEqual({ currentStatus: 'APPLIED' });
+    expect(
+      await client.jobStatusHistory.findMany({
+        orderBy: { changedAt: 'asc' },
+        select: { toStatus: true },
+      }),
+    ).toEqual([
+      { toStatus: 'NEW' },
+      { toStatus: 'VIEWED' },
+      { toStatus: 'APPLIED' },
+    ]);
   });
 
   it('excludes authoritative APPLIED and SKIPPED statuses', async () => {

@@ -36,3 +36,17 @@ export {
 export { PlaywrightBrowserRenderer } from './browser/playwright-browser-renderer.js';
 export { shouldBlockBrowserResource } from './browser/resource-policy.js';
 export { Sha256ProcessingHasher } from './crypto/sha256-processing-hasher.js';
+export { PrismaRecommendationReportRepository } from './persistence/recommendation-report-repository.js';
+export { APP_CSS, APP_JS } from './web/assets.js';
+export {
+  escapeHtml,
+  renderErrorPage,
+  renderRecommendationDetails,
+  renderRecommendationReport,
+  renderRunsPage,
+} from './web/html-renderer.js';
+export {
+  LocalServerError,
+  NodeLocalServer,
+  type LocalServerAddress,
+} from './web/node-local-server.js';

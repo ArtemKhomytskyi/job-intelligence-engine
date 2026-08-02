@@ -2,6 +2,13 @@
 
 Database repository tests use real PostgreSQL 17 and are deliberately separate from `npm test`. They never mock Prisma.
 
+Chunk 7 coverage loads the latest report and full score breakdown, verifies
+automatic VIEWED idempotency and APPLIED history/protection, reloads
+authoritative status, and runs a true local flow: fixture collection →
+persistence → processing → scoring/selection → batch persistence → ephemeral
+report → Chromium status update → PostgreSQL assertion. No external internet
+service is used.
+
 Set the dedicated local URL (PowerShell example), start the isolated Compose project, reset/apply migrations, and run tests:
 
 ```powershell

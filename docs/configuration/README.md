@@ -1,5 +1,20 @@
 # Configuration
 
+## Chunk 7 runtime settings
+
+Chunk 7 does not add a fifth configuration file. Candidate/search/scoring/source
+configuration remains authoritative and is validated before every full run and
+server startup. Server lifecycle values use CLI options with safe defaults:
+
+```powershell
+npm.cmd run cli -- serve --host 127.0.0.1 --port 3000
+```
+
+V1 rejects every host other than `127.0.0.1` and ports outside 1–65535. Manual
+pipeline bounds use `--concurrency` (1–8) and `--processing-limit` (1–10000).
+Full-run `--limit` overrides `preferences.dailyRecommendationLimit`; otherwise
+the validated configuration value applies.
+
 Job Intelligence Engine reads four YAML files from `config` by default. Tracked examples document the contract; private copies hold local preferences.
 
 | Private file   | Tracked example        | Contents                                    |

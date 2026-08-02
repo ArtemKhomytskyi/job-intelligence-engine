@@ -19,6 +19,14 @@ Migration `20260729223000_job_processing_decisions` adds current normalized quer
 
 Migration `20260730150000_recommendation_batches` adds immutable `RecommendationBatch` identity and provenance, recommendation-to-batch rank uniqueness, score opportunity values, deterministic score keys, and processing-decision/revision references. The unique input hash protects concurrent identical runs. Batch creation, component scores, and ordered recommendations are written in one transaction, so a failed score or recommendation write leaves no partial batch. Existing score and recommendation rows remain compatible through nullable references and the retained legacy batch label.
 
+Chunk 7 adds no migration. Its report queries existing collection runs,
+processing runs, recommendation batches/scores/components, jobs, source
+references, and status history. List retrieval is bounded and excludes
+descriptions; details use one relation-inclusive query. Status changes reuse the
+existing transaction that updates `Job.currentStatus` and appends immutable
+`JobStatusHistory`. A process-local run lock avoids redundant persisted state
+for the single-user V1 server.
+
 `npm run db:down` stops the main service without deleting its named volume. `docker compose down --volumes` destroys local developer data and must be deliberate. Application code provides no hard-delete workflow.
 
 For the isolated test database, follow [database test guidance](../testing/database-tests.md). Local/test passwords in Compose and CI are development-only defaults and must never be reused for production.

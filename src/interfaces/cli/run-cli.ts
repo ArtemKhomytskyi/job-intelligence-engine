@@ -8,6 +8,8 @@ import { formatHelp } from './output.js';
 import { runCollect } from './collect-command.js';
 import { runProcess } from './process-command.js';
 import { runRecommend } from './recommend-command.js';
+import { runFullPipelineCommand } from './run-command.js';
+import { runServe } from './serve-command.js';
 import {
   type CommandOutput,
   runValidateConfig,
@@ -31,6 +33,9 @@ export async function runCli(
         type: { type: 'string' },
         concurrency: { type: 'string', default: '3' },
         limit: { type: 'string' },
+        'processing-limit': { type: 'string', default: '1000' },
+        host: { type: 'string', default: '127.0.0.1' },
+        port: { type: 'string', default: '3000' },
         verbose: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
@@ -89,6 +94,38 @@ export async function runCli(
           configDirectory: parsed.values['config-dir'] ?? 'config',
           limit: Number(parsed.values.limit ?? '20'),
           asJson: parsed.values.json,
+          signal,
+        },
+        output,
+      );
+    }
+
+    if (command === 'run') {
+      return runFullPipelineCommand(
+        {
+          configDirectory: parsed.values['config-dir'] ?? 'config',
+          concurrency: Number(parsed.values.concurrency),
+          processingLimit: Number(parsed.values['processing-limit']),
+          ...(parsed.values.limit === undefined
+            ? {}
+            : { recommendationLimit: Number(parsed.values.limit) }),
+          verbose: parsed.values.verbose,
+          asJson: parsed.values.json,
+          signal,
+        },
+        output,
+      );
+    }
+
+    if (command === 'serve') {
+      return runServe(
+        {
+          configDirectory: parsed.values['config-dir'] ?? 'config',
+          host: parsed.values.host,
+          port: Number(parsed.values.port),
+          concurrency: Number(parsed.values.concurrency),
+          processingLimit: Number(parsed.values['processing-limit']),
+          verbose: parsed.values.verbose,
           signal,
         },
         output,
