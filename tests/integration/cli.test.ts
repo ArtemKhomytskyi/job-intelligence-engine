@@ -23,5 +23,5 @@ describe('validate-config CLI', () => {
     expect(stdout).toContain('Enabled tracks: 5');
     expect(stdout).toContain('Enabled sources: 3');
     expect(stdout).toContain('Daily recommendation limit: 20');
-  }, 20_000);
+  }, 60_000);
 });

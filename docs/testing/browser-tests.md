@@ -2,6 +2,12 @@
 
 Browser tests are separate from ordinary Vitest tests. They use a local synthetic HTTP server and never contact a live career site.
 
+Chunk 7 coverage also starts the local report on an ephemeral loopback port and
+exercises list rendering, track filtering, score sorting, details,
+explainability, automatic VIEWED behavior, safe apply attributes, explicit
+APPLIED status, refresh, and persisted fixture state. It never opens the
+external apply destination.
+
 ```sh
 npm run playwright:install
 npm run test:browser

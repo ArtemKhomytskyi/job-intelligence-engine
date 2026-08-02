@@ -865,7 +865,7 @@ type RecommendationScoreRecord = Prisma.JobScoreGetPayload<{
   include: { components: true };
 }>;
 
-function mapRecommendationScore(record: RecommendationScoreRecord) {
+export function mapRecommendationScore(record: RecommendationScoreRecord) {
   return {
     totalScore: record.totalScore.toNumber(),
     opportunityScore: record.opportunityScore.toNumber(),

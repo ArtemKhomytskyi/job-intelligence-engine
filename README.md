@@ -1,6 +1,6 @@
 # Job Intelligence Engine
 
-Job Intelligence Engine is a local-first application for collecting, processing, scoring, and recommending job opportunities with user-controlled configuration and explainable results. It provides strict configuration, PostgreSQL persistence, resilient collectors, bounded generic HTML extraction, versioned normalization, conservative deduplication, hard filters, deterministic scoring, and diversity-aware recommendation selection. APIs and UI are not implemented.
+Job Intelligence Engine is a local-first application for collecting, processing, scoring, and recommending job opportunities with user-controlled configuration and explainable results. It provides strict configuration, PostgreSQL persistence, resilient collectors, bounded generic HTML extraction, versioned normalization, conservative deduplication, hard filters, deterministic scoring, diversity-aware recommendation selection, and a local server-rendered report for application tracking.
 
 ## Goals
 
@@ -48,7 +48,18 @@ npm run cli -- db:status
 npm run cli -- collect --json
 npm run cli -- process --limit 1000 --json
 npm run cli -- recommend --limit 20 --json
+npm run cli -- run
+npm run cli -- serve
 ```
+
+The final two commands are the normal V1 workflow. `run` executes the complete
+pipeline; `serve` validates configuration/database connectivity and starts the
+local report at [http://127.0.0.1:3000](http://127.0.0.1:3000). It supports
+recommendation filters/sorts/details, persisted score explainability, safe
+descriptions and direct apply links, VIEWED/APPLIED/SKIPPED tracking, latest run
+state, and a manual full-pipeline action. See the [CLI guide](docs/cli.md),
+[local report architecture](docs/architecture/local-web-report.md), and
+[end-to-end pipeline architecture](docs/architecture/end-to-end-pipeline.md).
 
 Common service commands are:
 
@@ -82,7 +93,7 @@ npm run test:db
 - `src/domain`: pure domain contracts, categorical types, and range invariants.
 - `src/application`: configuration, collection, and persistence use cases with inward-owned ports.
 - `src/infrastructure`: filesystem, ATS/HTTP, logging, and Prisma adapters.
-- `src/interfaces`: local configuration and database CLI parsing/output.
+- `src/interfaces`: CLI and local HTTP delivery, lifecycle, and dependency composition.
 - `src/shared`: narrowly scoped, business-neutral utilities.
 - `prisma`: PostgreSQL schema and committed storage migrations.
 - `tests`: deterministic unit/integration tests plus a separately invoked PostgreSQL suite.
