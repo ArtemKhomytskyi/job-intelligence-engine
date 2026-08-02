@@ -1,5 +1,5 @@
 import type { SearchTrack, SourceConfig } from '../../domain/index.js';
-import { SCORING_COMPONENT_KEYS } from '../../domain/index.js';
+import { WEIGHTED_SCORING_COMPONENT_KEYS } from '../../domain/index.js';
 import type { ConfigurationBundle } from './configuration-bundle.js';
 import {
   ConfigurationError,
@@ -16,10 +16,48 @@ export function validateConfiguration(bundle: ConfigurationBundle): void {
   validateTracks(bundle, issues);
   validateSources(bundle, issues);
   validateWeights(bundle, issues);
+  validateScoringSettings(bundle, issues);
   validatePreferences(bundle, issues);
 
   if (issues.length > 0) {
     throw new ConfigurationError(issues);
+  }
+}
+
+function validateScoringSettings(
+  bundle: ConfigurationBundle,
+  issues: ConfigurationIssue[],
+): void {
+  const settings = bundle.scoring.settings;
+  if (settings.freshnessFullScoreDays >= settings.freshnessHorizonDays) {
+    issues.push({
+      code: 'CONFIG_RANGE_INVALID',
+      section: 'scoring',
+      fieldPath: 'settings.freshnessHorizonDays',
+      message: 'Freshness horizon must exceed the full-score window.',
+    });
+  }
+  for (const [field, aliases] of [
+    ['titleAliases', settings.titleAliases],
+    ['skillAliases', settings.skillAliases],
+  ] as const) {
+    const values = new Set<string>();
+    for (const [index, alias] of aliases.entries()) {
+      for (const value of [alias.canonical, ...alias.aliases]) {
+        const normalized = value
+          .normalize('NFKC')
+          .toLocaleLowerCase('en-US')
+          .trim();
+        if (values.has(normalized))
+          issues.push({
+            code: 'CONFIG_DUPLICATE_ID',
+            section: 'scoring',
+            fieldPath: `settings.${field}[${index}]`,
+            message: `Scoring alias "${value}" is defined more than once.`,
+          });
+        values.add(normalized);
+      }
+    }
   }
 }
 
@@ -92,7 +130,7 @@ function validateWeights(
   bundle: ConfigurationBundle,
   issues: ConfigurationIssue[],
 ): void {
-  const total = SCORING_COMPONENT_KEYS.reduce(
+  const total = WEIGHTED_SCORING_COMPONENT_KEYS.reduce(
     (sum, key) => sum + bundle.scoring.weights[key],
     0,
   );

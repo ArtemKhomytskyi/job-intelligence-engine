@@ -4,6 +4,8 @@
 - [002: Storage and repository layer](002-storage-and-repositories.md)
 - [003: Collection framework and initial ATS collectors](003-collection-framework-and-ats-collectors.md)
 - [004: Generic web extraction](004-generic-web-extraction.md)
+- [005: Normalization, deduplication, and hard filters](005-normalization-deduplication-filters.md)
+- [006: Deterministic scoring and recommendations](006-deterministic-scoring-recommendations.md)
 
 This directory holds living plans for substantial implementation work. Copy `TEMPLATE.md`, replace every prompt with concrete project facts, and update it throughout implementation. Keep completed plans as decision and verification history unless they contain sensitive information; sensitive information must never enter a plan.
 

@@ -9,6 +9,7 @@ candidate:
       field: Applied Computing
       institution: Example Institute of Technology
   professionalExperienceSummary: Experience delivering data products and developer-facing software.
+  totalYearsExperience: 5
   skills:
     - name: TypeScript
       yearsOfExperience: 4

@@ -12,9 +12,12 @@ export const SENIORITY_LEVELS = [
   'entry',
   'mid',
   'senior',
+  'staff',
+  'principal',
   'lead',
   'manager',
   'director',
+  'vp',
   'executive',
 ] as const;
 export type SeniorityLevel = (typeof SENIORITY_LEVELS)[number];

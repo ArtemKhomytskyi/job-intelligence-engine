@@ -128,3 +128,41 @@ preferences:
   dailyRecommendationLimit: 20
   minimumAcceptableScore: 60
   maximumRecommendationsPerCompany: 3
+  hardFilters:
+    allowedCountries:
+      - DE
+      - NL
+      - GB
+    allowedCountryGroups:
+      - EU
+      - EEA
+    rejectUnknownLocation: false
+    unknownCandidateLanguageLevelPolicy: allow
+    maximumSeniority: mid
+    maximumRequiredExperienceYears: 3
+    allowMandatoryPhd: false
+    excludedCompanies:
+      - Fictional Staffing Example
+    excludedIndustries:
+      - gambling
+    excludedTitlePhrases:
+      - Sales
+      - Nurse
+      - Driver
+    rejectUnknownIndustry: false
+    removableTrackingParameters:
+      - utm_source
+      - utm_medium
+      - utm_campaign
+    companyLegalSuffixes:
+      - Ltd
+      - Limited
+      - LLC
+      - Inc
+      - Incorporated
+      - GmbH
+      - AG
+      - S.p.A.
+      - SRL
+      - BV
+      - PLC

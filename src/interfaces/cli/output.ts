@@ -59,6 +59,8 @@ export function formatHelp(): string {
     'Commands:',
     '  validate-config  Validate local or example YAML configuration',
     '  collect          Collect jobs from enabled Greenhouse and Lever sources',
+    '  process          Normalize, deduplicate, and hard-filter collected jobs',
+    '  recommend        Score eligible jobs and create a recommendation batch',
     '  db:check         Verify the configured database is reachable',
     '  db:migrate       Apply committed migrations',
     '  db:status        Verify committed migrations are current',
@@ -70,6 +72,7 @@ export function formatHelp(): string {
     '  --source <id>        Collect one source (repeatable)',
     '  --type <type>        Collect greenhouse, lever, generic-page, or generic-job-list sources',
     '  --concurrency <n>    Concurrent sources, 1-8 (default: 3)',
+    '  --limit <n>          Process: 1-10000 (default 1000); recommend: 1-1000 (default 20)',
     '  --verbose            Emit diagnostic logs to stderr',
     '  --help               Show this help',
   ].join('\n');

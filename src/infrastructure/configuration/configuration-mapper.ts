@@ -34,6 +34,9 @@ export function mapProfile(document: ProfileDocument): CandidateProfile {
         : { institution: record.institution }),
     })),
     professionalExperienceSummary: candidate.professionalExperienceSummary,
+    ...(candidate.totalYearsExperience === undefined
+      ? {}
+      : { totalYearsExperience: candidate.totalYearsExperience }),
     skills: candidate.skills.map((skill) => ({
       name: skill.name,
       ...(skill.yearsOfExperience === undefined
@@ -110,6 +113,24 @@ export function mapSearch(
         ),
         maximumRecommendationsPerCompany:
           preferences.maximumRecommendationsPerCompany,
+        hardFilters: {
+          allowedCountries: preferences.hardFilters.allowedCountries,
+          allowedCountryGroups: preferences.hardFilters.allowedCountryGroups,
+          rejectUnknownLocation: preferences.hardFilters.rejectUnknownLocation,
+          unknownCandidateLanguageLevelPolicy:
+            preferences.hardFilters.unknownCandidateLanguageLevelPolicy,
+          maximumSeniority: preferences.hardFilters.maximumSeniority,
+          maximumRequiredExperienceYears:
+            preferences.hardFilters.maximumRequiredExperienceYears,
+          allowMandatoryPhd: preferences.hardFilters.allowMandatoryPhd,
+          excludedCompanies: preferences.hardFilters.excludedCompanies,
+          excludedIndustries: preferences.hardFilters.excludedIndustries,
+          excludedTitlePhrases: preferences.hardFilters.excludedTitlePhrases,
+          rejectUnknownIndustry: preferences.hardFilters.rejectUnknownIndustry,
+          removableTrackingParameters:
+            preferences.hardFilters.removableTrackingParameters,
+          companyLegalSuffixes: preferences.hardFilters.companyLegalSuffixes,
+        },
       },
     };
   } catch (cause: unknown) {
@@ -135,6 +156,7 @@ export function mapScoring(document: ScoringDocument): ScoringConfig {
         document.weights.applicationSimplicity,
       ),
     },
+    settings: document.settings,
   };
 }
 

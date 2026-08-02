@@ -43,6 +43,7 @@ export interface CandidateProfile {
   readonly summary?: string;
   readonly education: readonly EducationRecord[];
   readonly professionalExperienceSummary: string;
+  readonly totalYearsExperience?: number;
   readonly skills: readonly Skill[];
   readonly languages: readonly LanguageRequirement[];
   readonly citizenships: readonly string[];

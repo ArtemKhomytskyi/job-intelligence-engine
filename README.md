@@ -1,6 +1,6 @@
 # Job Intelligence Engine
 
-Job Intelligence Engine is a local-first foundation for collecting job opportunities with user-controlled configuration and explainable results. It provides strict configuration, PostgreSQL persistence, resilient Greenhouse and Lever public-API collectors, and bounded generic HTML extraction with optional Chromium fallback. Filtering, scoring calculations, recommendation selection, APIs, and UI are not implemented.
+Job Intelligence Engine is a local-first application for collecting, processing, scoring, and recommending job opportunities with user-controlled configuration and explainable results. It provides strict configuration, PostgreSQL persistence, resilient collectors, bounded generic HTML extraction, versioned normalization, conservative deduplication, hard filters, deterministic scoring, and diversity-aware recommendation selection. APIs and UI are not implemented.
 
 ## Goals
 
@@ -8,7 +8,7 @@ Job Intelligence Engine is a local-first foundation for collecting job opportuni
 - Reproducible npm, PostgreSQL, Prisma, Docker Compose, and CI workflows.
 - Local handling of future personal job-search data by default.
 
-The current phase collects and stores jobs; it contains no filtering, scoring, or recommendation-selection algorithms.
+The current phase also scores eligible normalized jobs against enabled tracks and persists immutable recommendation batches with full component breakdowns.
 
 ## Technology
 
@@ -46,6 +46,8 @@ npm run prisma:migrate:deploy
 npm run cli -- db:check
 npm run cli -- db:status
 npm run cli -- collect --json
+npm run cli -- process --limit 1000 --json
+npm run cli -- recommend --limit 20 --json
 ```
 
 Common service commands are:
@@ -73,7 +75,7 @@ npm run build
 npm run test:db
 ```
 
-`npm run verify` runs formatting, linting, type-checking, database-independent tests, Prisma validation and generation, and the build. `npm run verify:full` additionally runs isolated Chromium fixtures, applies migrations to the guarded `TEST_DATABASE_URL`, and runs real PostgreSQL tests. Coverage remains a separate explicit check. See the [generic collector guide](docs/collectors/generic-web.md), [database guide](docs/database/README.md), and [database-test guide](docs/testing/database-tests.md).
+`npm run verify` runs formatting, linting, type-checking, database-independent tests, Prisma validation and generation, and the build. `npm run verify:full` additionally runs isolated Chromium fixtures, applies migrations to the guarded `TEST_DATABASE_URL`, and runs real PostgreSQL tests. Coverage remains a separate explicit check. See the [processing architecture](docs/architecture/job-processing.md), [scoring and recommendation architecture](docs/architecture/scoring-recommendations.md), [generic collector guide](docs/collectors/generic-web.md), [database guide](docs/database/README.md), and [database-test guide](docs/testing/database-tests.md).
 
 ## Repository layout
 

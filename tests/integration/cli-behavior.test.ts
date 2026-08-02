@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { runCli } from '../../src/interfaces/index.js';
+import {
+  createTemporaryConfigDirectory,
+  removeTemporaryConfigDirectory,
+} from '../helpers/config-directory.js';
 
 describe('CLI behavior', () => {
   it('shows help when no command is provided', async () => {
@@ -54,6 +58,63 @@ describe('CLI behavior', () => {
     expect(output.stderr.join('')).toContain('CONFIG_FILE_NOT_FOUND');
     expect(output.stderr.join('')).toContain('4 issues');
   });
+
+  it('returns a configuration error from the process command before database access', async () => {
+    const output = captureOutput();
+    await expect(
+      runCli(['process', '--config-dir', 'does-not-exist'], output),
+    ).resolves.toBe(2);
+    expect(output.stdout).toEqual([]);
+    expect(output.stderr.join('')).toContain('Configuration contains 4 issues');
+  });
+
+  it('returns a usage error for an invalid process limit', async () => {
+    const directory = await createTemporaryConfigDirectory();
+    try {
+      const output = captureOutput();
+      await expect(
+        runCli(
+          ['process', '--config-dir', directory, '--limit', 'not-a-number'],
+          output,
+        ),
+      ).resolves.toBe(2);
+      expect(output.stdout).toEqual([]);
+      expect(output.stderr.join('')).toContain(
+        'Processing limit must be an integer',
+      );
+    } finally {
+      await removeTemporaryConfigDirectory(directory);
+    }
+  });
+
+  it.each(['0', '-1', '1.5', 'not-a-number'])(
+    'returns a usage error for recommend limit %s before database access',
+    async (limit) => {
+      const directory = await createTemporaryConfigDirectory();
+      try {
+        const output = captureOutput();
+        await expect(
+          runCli(
+            [
+              'recommend',
+              '--config-dir',
+              directory,
+              ...(limit.startsWith('-')
+                ? [`--limit=${limit}`]
+                : ['--limit', limit]),
+            ],
+            output,
+          ),
+        ).resolves.toBe(2);
+        expect(output.stdout).toEqual([]);
+        expect(output.stderr.join('')).toContain(
+          'Recommendation limit must be an integer',
+        );
+      } finally {
+        await removeTemporaryConfigDirectory(directory);
+      }
+    },
+  );
 });
 
 function captureOutput() {

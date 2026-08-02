@@ -4,6 +4,7 @@ import type {
   NormalizedJobPosting,
   RemotePolicy,
 } from '../../domain/index.js';
+import { normalizePublicUrlValue } from '../../domain/index.js';
 import { CollectionError } from './errors.js';
 import type { CollectableSource, CollectedJobCandidate } from './models.js';
 
@@ -39,26 +40,13 @@ export function htmlToPlainText(value: string): string | undefined {
 }
 
 export function normalizePublicUrl(value: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(normalizeWhitespace(value));
-  } catch (cause: unknown) {
-    throw normalizationError('Job URL is invalid.', cause);
-  }
-  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(
-    parsed.hostname,
-  );
-  if (
-    parsed.protocol !== 'https:' &&
-    !(parsed.protocol === 'http:' && loopback)
-  ) {
+  const result = normalizePublicUrlValue(value);
+  if (result.status === 'SUCCESS') return result.value;
+  if (result.code === 'HTTPS_REQUIRED')
     throw normalizationError('Job URL must use HTTPS.');
-  }
-  if (parsed.username.length > 0 || parsed.password.length > 0) {
+  if (result.code === 'CREDENTIALS_NOT_ALLOWED')
     throw normalizationError('Job URL must not contain credentials.');
-  }
-  parsed.hash = '';
-  return parsed.toString();
+  throw normalizationError('Job URL is invalid.');
 }
 
 export function normalizeCollectedJob(

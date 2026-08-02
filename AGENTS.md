@@ -2,7 +2,7 @@
 
 ## Purpose and phase
 
-Job Intelligence Engine will become a local-first, explainable job-discovery application. Chunk 4 provides configuration, PostgreSQL persistence, ATS collectors, and bounded generic web extraction. Filtering and scoring algorithms, recommendation selection, APIs, and UI remain out of scope unless a later task explicitly authorizes them.
+Job Intelligence Engine is a local-first, explainable job-discovery application. Chunk 5 provides deterministic normalization, conservative deduplication, and hard filters on top of configuration, persistence, and collection. Scoring, recommendation selection, APIs, and UI remain out of scope unless a later task explicitly authorizes them.
 
 ## Inspect and scope
 
