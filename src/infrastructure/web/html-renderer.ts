@@ -1,5 +1,6 @@
 import type {
   LatestPipelineState,
+  PipelineStage,
   RecommendationDetails,
   RecommendationListItem,
   RecommendationReport,
@@ -90,6 +91,38 @@ export function renderRunsPage(state: LatestPipelineState): string {
   return layout(
     'Latest pipeline state',
     `<div class="page-heading"><div><p class="eyebrow">Persisted run records</p><h1>Latest pipeline state</h1></div></div>${renderPipelineState(state)}`,
+  );
+}
+
+export function renderPipelineFailurePage(
+  stage: PipelineStage,
+  state: LatestPipelineState,
+): string {
+  const collection = state.collection;
+  return layout(
+    'Pipeline run failed',
+    `<section class="panel" role="alert" aria-labelledby="pipeline-failure-heading">
+      <p class="eyebrow">Controlled pipeline failure</p>
+      <h1 id="pipeline-failure-heading">Pipeline run failed</h1>
+      <p>${escapeHtml(pipelineFailureExplanation(stage))}</p>
+      <div class="metadata-grid">
+        ${metric('Failed stage', humanize(stage))}
+        ${metric('Sources attempted', collection === undefined ? 'Unavailable' : String(collection.sourcesAttempted))}
+        ${metric('Sources succeeded', collection === undefined ? 'Unavailable' : String(collection.sourcesSucceeded))}
+        ${metric('Sources failed', collection === undefined ? 'Unavailable' : String(collection.sourcesFailed))}
+        ${metric('Jobs collected', collection === undefined ? 'Unavailable' : String(collection.jobsCollected))}
+        ${metric('Jobs created', collection === undefined ? 'Unavailable' : String(collection.jobsCreated))}
+        ${metric('Jobs updated', collection === undefined ? 'Unavailable' : String(collection.jobsUpdated))}
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="attempt-progress-heading">
+      <h2 id="attempt-progress-heading">Stages in this attempt</h2>
+      <div class="metadata-grid">${pipelineStageProgress(stage)
+        .map(({ label, status }) => metric(label, status))
+        .join('')}</div>
+      <p class="muted">Persisted run records remain available. Older downstream records, if present, belong to earlier attempts.</p>
+    </section>
+    <div class="actions"><a class="button" href="/runs/latest">View latest pipeline state</a><a class="button secondary" href="/recommendations">Back to recommendations</a></div>`,
   );
 }
 
@@ -236,6 +269,41 @@ function renderPipelineState(state: LatestPipelineState | undefined): string {
     <div><h3>Processing</h3>${state.processing === undefined ? '<p class="muted">Unavailable</p>' : `<div class="metadata-grid">${metric('Status', state.processing.status)}${metric('Counts', `${state.processing.eligible} eligible · ${state.processing.rejected} rejected`)}${metric('Duplicates', `${state.processing.duplicates} exact · ${state.processing.possibleDuplicates} possible`)}${metric('Errors', String(state.processing.errors))}</div>`}</div>
     <div><h3>Recommendations</h3>${state.recommendations === undefined ? '<p class="muted">Unavailable</p>' : `<div class="metadata-grid">${metric('Batch', state.recommendations.batchId)}${metric('Selected', `${state.recommendations.selected} / ${state.recommendations.requested}`)}${metric('Evaluated', formatDate(state.recommendations.evaluationTime))}</div>`}</div>
   </div></section>`;
+}
+
+function pipelineFailureExplanation(stage: PipelineStage): string {
+  const explanations: Record<PipelineStage, string> = {
+    configuration:
+      'Configuration could not be loaded or validated, so no pipeline work was started.',
+    collection:
+      'Collection did not produce a successful source result. Processing and recommendation generation were not run.',
+    processing:
+      'Collected jobs could not be processed successfully. Recommendation generation was not run.',
+    recommendations:
+      'Recommendation generation or persistence did not complete successfully.',
+  };
+  return explanations[stage];
+}
+
+function pipelineStageProgress(
+  failedStage: PipelineStage,
+): readonly { readonly label: string; readonly status: string }[] {
+  const stages: readonly PipelineStage[] = [
+    'configuration',
+    'collection',
+    'processing',
+    'recommendations',
+  ];
+  const failedIndex = stages.indexOf(failedStage);
+  return stages.map((stage, index) => ({
+    label: humanize(stage),
+    status:
+      index < failedIndex
+        ? 'Completed'
+        : index === failedIndex
+          ? 'Failed'
+          : 'Not run',
+  }));
 }
 
 function renderNoBatch(): string {

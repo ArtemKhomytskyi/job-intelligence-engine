@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   ActivePipelineRunError,
+  PipelineStageError,
   RecommendationNotFoundError,
   type RecommendationDetails,
   type RecommendationReport,
@@ -171,6 +172,91 @@ describe('local report HTTP interface', () => {
     expect(await conflict.text()).toContain('already running');
   });
 
+  it('redirects a collection-stage failure to a safe persisted-state page', async () => {
+    runtime.reportValue = failedCollectionReport();
+    runtime.pipelineFailure = new PipelineStageError(
+      'collection',
+      'DATABASE_INTERNAL_SENTINEL C:\\private\\source-credentials.env',
+    );
+
+    const response = await fetch(`${baseUrl}/actions/run`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { Origin: baseUrl },
+    });
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe(
+      '/runs/latest?failure=collection',
+    );
+
+    const failurePage = await fetch(
+      `${baseUrl}${response.headers.get('location')!}`,
+    );
+    const html = await failurePage.text();
+    expect(failurePage.status).toBe(200);
+    expect(html).toContain('Pipeline run failed');
+    expect(html).toContain(
+      'Collection did not produce a successful source result',
+    );
+    expect(html).toContain('Sources attempted');
+    expect(html).toContain('<strong>3</strong>');
+    expect(html).toContain('Processing');
+    expect(html).toContain('Not run');
+    expect(html).toContain('View latest pipeline state');
+    expect(html).toContain('Back to recommendations');
+    expect(html).not.toContain('DATABASE_INTERNAL_SENTINEL');
+    expect(html).not.toContain('source-credentials.env');
+
+    const persistedPage = await fetch(`${baseUrl}/runs/latest`);
+    const persistedHtml = await persistedPage.text();
+    expect(persistedHtml).toContain('FAILED');
+    expect(persistedHtml).toContain('0 succeeded / 3 failed');
+    expect(persistedHtml).toContain('4 collected');
+  });
+
+  it('keeps failed persisted state stable across duplicate manual submissions', async () => {
+    runtime.reportValue = failedCollectionReport();
+    runtime.pipelineFailure = new PipelineStageError(
+      'collection',
+      'Collection failed.',
+    );
+    const persistedState = structuredClone(runtime.reportValue.latestState);
+
+    const submissions = await Promise.all(
+      [1, 2].map(() =>
+        fetch(`${baseUrl}/actions/run`, {
+          method: 'POST',
+          redirect: 'manual',
+          headers: { Origin: baseUrl },
+        }),
+      ),
+    );
+
+    expect(submissions.map(({ status }) => status)).toEqual([303, 303]);
+    expect(runtime.pipelineInputs).toHaveLength(2);
+    expect(runtime.reportValue.latestState).toEqual(persistedState);
+    expect(await (await fetch(`${baseUrl}/runs/latest`)).text()).toContain(
+      'FAILED',
+    );
+  });
+
+  it('keeps unexpected pipeline exceptions on the generic 500 page', async () => {
+    runtime.pipelineFailure = new Error(
+      'DATABASE_INTERNAL_SENTINEL C:\\private\\unexpected-path',
+    );
+    const response = await fetch(`${baseUrl}/actions/run`, {
+      method: 'POST',
+      headers: { Origin: baseUrl },
+    });
+    const html = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(html).toContain('Unexpected error');
+    expect(html).not.toContain('Pipeline run failed');
+    expect(html).not.toContain('DATABASE_INTERNAL_SENTINEL');
+    expect(html).not.toContain('unexpected-path');
+  });
+
   it('supports empty state, latest runs, health, static assets and 404 pages', async () => {
     const populated = report();
     runtime.reportValue = {
@@ -236,6 +322,7 @@ class FakeRuntime implements LocalReportRuntime {
   public readonly statusUpdates: [string, UserApplicationStatus][] = [];
   public readonly pipelineInputs: RunFullPipelineInput[] = [];
   public pipelineConflict = false;
+  public pipelineFailure: Error | undefined;
   public healthFailure = false;
   public detailsMissing = false;
   public reportFailure = false;
@@ -269,6 +356,8 @@ class FakeRuntime implements LocalReportRuntime {
       if (this.pipelineConflict)
         return Promise.reject(new ActivePipelineRunError());
       this.pipelineInputs.push(input);
+      if (this.pipelineFailure !== undefined)
+        return Promise.reject(this.pipelineFailure);
       return Promise.resolve(pipelineResult());
     },
   };
@@ -319,6 +408,45 @@ function report(): RecommendationReport {
         evaluationTime: '2026-08-02T10:00:00.000Z',
         selected: 1,
         requested: 20,
+      },
+    },
+  };
+}
+
+function failedCollectionReport(): RecommendationReport {
+  return {
+    ...report(),
+    latestState: {
+      collection: {
+        runId: 'failed-collection-run',
+        status: 'FAILED',
+        startedAt: '2026-08-02T12:00:00.000Z',
+        completedAt: '2026-08-02T12:00:03.000Z',
+        sourcesAttempted: 3,
+        sourcesSucceeded: 0,
+        sourcesFailed: 3,
+        jobsCollected: 4,
+        jobsCreated: 2,
+        jobsUpdated: 1,
+      },
+      processing: {
+        runId: 'older-processing-run',
+        status: 'COMPLETED',
+        startedAt: '2026-08-01T12:00:00.000Z',
+        completedAt: '2026-08-01T12:00:02.000Z',
+        considered: 8,
+        normalized: 8,
+        duplicates: 0,
+        possibleDuplicates: 0,
+        rejected: 1,
+        eligible: 7,
+        errors: 0,
+      },
+      recommendations: {
+        batchId: 'older-batch',
+        evaluationTime: '2026-08-01T12:00:03.000Z',
+        selected: 5,
+        requested: 5,
       },
     },
   };

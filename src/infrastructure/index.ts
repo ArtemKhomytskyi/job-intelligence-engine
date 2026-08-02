@@ -41,6 +41,7 @@ export { APP_CSS, APP_JS } from './web/assets.js';
 export {
   escapeHtml,
   renderErrorPage,
+  renderPipelineFailurePage,
   renderRecommendationDetails,
   renderRecommendationReport,
   renderRunsPage,
