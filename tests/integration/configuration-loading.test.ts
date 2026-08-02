@@ -46,6 +46,25 @@ describe('configuration loading', () => {
     });
   });
 
+  it('rejects duplicate aliases and impossible freshness settings', async () => {
+    await replaceInConfig(
+      directory,
+      'scoring',
+      'aliases: [ml engineer]',
+      'aliases: [machine learning engineer]',
+    );
+    await expectIssue(directory, 'CONFIG_DUPLICATE_ID');
+    await writeConfig(
+      directory,
+      'scoring',
+      (await readFile(join('config', 'scoring.example.yaml'), 'utf8')).replace(
+        'freshnessHorizonDays: 60',
+        'freshnessHorizonDays: 3',
+      ),
+    );
+    await expectIssue(directory, 'CONFIG_RANGE_INVALID');
+  });
+
   it('reports a missing file', async () => {
     await rm(join(directory, 'profile.yaml'));
     await expectIssue(directory, 'CONFIG_FILE_NOT_FOUND');

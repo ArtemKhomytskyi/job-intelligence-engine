@@ -7,6 +7,7 @@ import {
 import { formatHelp } from './output.js';
 import { runCollect } from './collect-command.js';
 import { runProcess } from './process-command.js';
+import { runRecommend } from './recommend-command.js';
 import {
   type CommandOutput,
   runValidateConfig,
@@ -29,7 +30,7 @@ export async function runCli(
         source: { type: 'string', multiple: true, default: [] },
         type: { type: 'string' },
         concurrency: { type: 'string', default: '3' },
-        limit: { type: 'string', default: '1000' },
+        limit: { type: 'string' },
         verbose: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
@@ -73,8 +74,20 @@ export async function runCli(
       return runProcess(
         {
           configDirectory: parsed.values['config-dir'] ?? 'config',
-          limit: Number(parsed.values.limit),
+          limit: Number(parsed.values.limit ?? '1000'),
           verbose: parsed.values.verbose,
+          asJson: parsed.values.json,
+          signal,
+        },
+        output,
+      );
+    }
+
+    if (command === 'recommend') {
+      return runRecommend(
+        {
+          configDirectory: parsed.values['config-dir'] ?? 'config',
+          limit: Number(parsed.values.limit ?? '20'),
           asJson: parsed.values.json,
           signal,
         },

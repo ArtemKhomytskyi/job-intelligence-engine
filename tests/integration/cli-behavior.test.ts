@@ -86,6 +86,35 @@ describe('CLI behavior', () => {
       await removeTemporaryConfigDirectory(directory);
     }
   });
+
+  it.each(['0', '-1', '1.5', 'not-a-number'])(
+    'returns a usage error for recommend limit %s before database access',
+    async (limit) => {
+      const directory = await createTemporaryConfigDirectory();
+      try {
+        const output = captureOutput();
+        await expect(
+          runCli(
+            [
+              'recommend',
+              '--config-dir',
+              directory,
+              ...(limit.startsWith('-')
+                ? [`--limit=${limit}`]
+                : ['--limit', limit]),
+            ],
+            output,
+          ),
+        ).resolves.toBe(2);
+        expect(output.stdout).toEqual([]);
+        expect(output.stderr.join('')).toContain(
+          'Recommendation limit must be an integer',
+        );
+      } finally {
+        await removeTemporaryConfigDirectory(directory);
+      }
+    },
+  );
 });
 
 function captureOutput() {

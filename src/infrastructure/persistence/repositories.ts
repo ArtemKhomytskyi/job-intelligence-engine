@@ -25,6 +25,10 @@ import type {
   ProcessingRunWrite,
   ProcessingSaveOutcome,
   RecommendationRepository,
+  RecommendationBatchRepository,
+  RecommendationBatchWrite,
+  RecommendationCandidateRecord,
+  PersistedRecommendationBatch,
   RecommendationWrite,
   ScoreRepository,
   ScoreWrite,
@@ -40,6 +44,8 @@ import {
   type JobLocation,
   type JsonValue,
   type RemotePolicy,
+  type EnrichedNormalizedJob,
+  type ScoreReason,
 } from '../../domain/index.js';
 import {
   mapJob,
@@ -679,6 +685,165 @@ export class PrismaRecommendationRepository implements RecommendationRepository 
   }
 }
 
+export class PrismaRecommendationBatchRepository implements RecommendationBatchRepository {
+  public constructor(private readonly client: PrismaRepositoryClient) {}
+
+  public async listEligibleCandidates(
+    limit: number,
+  ): Promise<readonly RecommendationCandidateRecord[]> {
+    const records = await this.client.job.findMany({
+      where: {
+        currentStatus: { notIn: ['APPLIED', 'SKIPPED'] },
+        normalizedPayload: { not: Prisma.DbNull },
+        processingDecisions: { some: {} },
+      },
+      take: limit,
+      orderBy: [{ lastCollectedAt: 'desc' }, { id: 'asc' }],
+      include: {
+        processingDecisions: {
+          take: 1,
+          orderBy: [{ processedAt: 'desc' }, { id: 'desc' }],
+        },
+        sourceReferences: {
+          take: 20,
+          orderBy: [{ firstSeenAt: 'asc' }, { id: 'asc' }],
+          include: { source: { select: { id: true, type: true } } },
+        },
+      },
+    });
+    return records.flatMap((record) => {
+      const decision = record.processingDecisions[0];
+      if (decision === undefined || decision.processingStatus !== 'ELIGIBLE')
+        return [];
+      return [
+        {
+          jobId: record.id,
+          processingDecisionId: decision.id,
+          inputRevisionNumber: decision.inputRevisionNumber,
+          currentStatus: record.currentStatus,
+          normalizedJob: parseNormalizedPayload(record.normalizedPayload),
+          sourceIds: record.sourceReferences.map((item) => item.source.id),
+          source: {
+            ...(record.sourceReferences[0]?.source.type === undefined
+              ? {}
+              : { type: record.sourceReferences[0].source.type }),
+            tags: [],
+            trackIds: [],
+          },
+        },
+      ];
+    });
+  }
+
+  public async saveBatch(
+    input: RecommendationBatchWrite,
+  ): Promise<PersistedRecommendationBatch> {
+    const created = await this.client.recommendationBatch.createMany({
+      data: {
+        inputHash: input.inputHash,
+        evaluationTime: parseTimestamp(input.evaluationTime, 'evaluationTime'),
+        requestedLimit: input.requestedLimit,
+        selectedCount: input.items.length,
+        configurationFingerprint: input.configurationFingerprint,
+        scoringVersion: input.scoringVersion,
+        selectorVersion: input.selectorVersion,
+      },
+      skipDuplicates: true,
+    });
+    const batch = await this.client.recommendationBatch.findUniqueOrThrow({
+      where: { inputHash: input.inputHash },
+    });
+    if (created.count === 0) return this.loadBatch(batch.id, true);
+    for (const item of input.items) {
+      const scoreKey = `${input.inputHash}:${item.jobId}`;
+      const score = await this.client.jobScore.create({
+        data: {
+          jobId: item.jobId,
+          processingDecisionId: item.processingDecisionId,
+          inputRevisionNumber: item.inputRevisionNumber,
+          searchTrackId: item.score.selectedTrackId,
+          totalScore: item.score.totalScore,
+          opportunityScore: item.score.opportunityScore,
+          confidence: item.score.completeness,
+          positiveReasons: toPrismaJson(item.score.positiveReasons),
+          concerns: toPrismaJson(item.score.concerns),
+          missingData: toPrismaJson(item.score.missingData),
+          scoringVersion: input.scoringVersion,
+          scoreKey,
+          calculatedAt: parseTimestamp(input.evaluationTime, 'evaluationTime'),
+          components: {
+            create: item.score.components.map((component) => ({
+              key: component.key,
+              rawScore: component.rawScore,
+              weight: component.weight,
+              contribution: component.contribution,
+              confidence: component.confidence,
+              reasons: toPrismaJson(component.reasons),
+            })),
+          },
+        },
+      });
+      await this.client.recommendation.create({
+        data: {
+          jobId: item.jobId,
+          scoreId: score.id,
+          searchTrackId: item.score.selectedTrackId,
+          rank: item.rank,
+          recommendationBatch: batch.id,
+          batchId: batch.id,
+          explanation: JSON.stringify({
+            positives: item.score.positiveReasons.slice(0, 3),
+            concerns: item.score.concerns.slice(0, 3),
+          }),
+          generatedAt: parseTimestamp(input.evaluationTime, 'evaluationTime'),
+          active: true,
+        },
+      });
+    }
+    return this.loadBatch(batch.id, false);
+  }
+
+  private async loadBatch(
+    id: string,
+    reused: boolean,
+  ): Promise<PersistedRecommendationBatch> {
+    const batch = await this.client.recommendationBatch.findUniqueOrThrow({
+      where: { id },
+      include: {
+        recommendations: {
+          orderBy: [{ rank: 'asc' }, { id: 'asc' }],
+          include: {
+            job: { select: { title: true, company: true } },
+            score: { include: { components: { orderBy: { key: 'asc' } } } },
+          },
+        },
+      },
+    });
+    return {
+      id: batch.id,
+      inputHash: batch.inputHash,
+      evaluationTime: batch.evaluationTime.toISOString(),
+      requestedLimit: batch.requestedLimit,
+      selectedCount: batch.selectedCount,
+      configurationFingerprint: batch.configurationFingerprint,
+      scoringVersion: batch.scoringVersion,
+      selectorVersion: batch.selectorVersion,
+      createdAt: batch.createdAt.toISOString(),
+      reused,
+      items: batch.recommendations.map((recommendation) => ({
+        jobId: recommendation.jobId,
+        processingDecisionId: recommendation.score.processingDecisionId ?? '',
+        inputRevisionNumber: recommendation.score.inputRevisionNumber ?? 0,
+        rank: recommendation.rank,
+        scoreId: recommendation.scoreId,
+        title: recommendation.job.title,
+        company: recommendation.job.company,
+        score: mapRecommendationScore(recommendation.score),
+      })),
+    };
+  }
+}
+
 function mapRecommendation(
   record: Prisma.RecommendationGetPayload<object>,
 ): PersistedRecommendation {
@@ -694,6 +859,113 @@ function mapRecommendation(
     active: record.active,
     createdAt: record.createdAt.toISOString(),
   };
+}
+
+type RecommendationScoreRecord = Prisma.JobScoreGetPayload<{
+  include: { components: true };
+}>;
+
+function mapRecommendationScore(record: RecommendationScoreRecord) {
+  return {
+    totalScore: record.totalScore.toNumber(),
+    opportunityScore: record.opportunityScore.toNumber(),
+    selectedTrackId: record.searchTrackId,
+    components: record.components
+      .map((component) => ({
+        key: component.key as import('../../domain/index.js').ScoringComponentKey,
+        rawScore: component.rawScore.toNumber(),
+        weight: component.weight.toNumber(),
+        contribution: component.contribution.toNumber(),
+        confidence: component.confidence.toNumber(),
+        reasons: jsonScoreReasons(component.reasons, 'component.reasons'),
+      }))
+      .sort((left, right) => left.key.localeCompare(right.key, 'en-US')),
+    positiveReasons: jsonScoreReasons(
+      record.positiveReasons,
+      'positiveReasons',
+    ),
+    concerns: jsonScoreReasons(record.concerns, 'concerns'),
+    missingData: jsonStringArray(record.missingData, 'missingData'),
+    completeness: record.confidence.toNumber(),
+  };
+}
+
+function jsonScoreReasons(
+  value: unknown,
+  field: string,
+): readonly ScoreReason[] {
+  const json = fromPrismaJson(value);
+  if (!Array.isArray(json))
+    throw new PersistenceError(
+      'DATA_MAPPING_FAILED',
+      `${field} must be an array.`,
+    );
+  return json.map((item) => {
+    if (
+      !isJsonObject(item) ||
+      typeof item['code'] !== 'string' ||
+      typeof item['message'] !== 'string' ||
+      !['POSITIVE', 'NEGATIVE', 'NEUTRAL', 'MISSING_DATA'].includes(
+        typeof item['impact'] === 'string' ? item['impact'] : '',
+      )
+    )
+      throw new PersistenceError(
+        'DATA_MAPPING_FAILED',
+        `${field} contains an invalid score reason.`,
+      );
+    const details = scoreReasonDetails(item['details']);
+    return {
+      code: item['code'],
+      message: item['message'],
+      impact: item['impact'] as ScoreReason['impact'],
+      ...(details === undefined ? {} : { details }),
+    };
+  });
+}
+
+function scoreReasonDetails(
+  value: unknown,
+): ScoreReason['details'] | undefined {
+  if (!isJsonObject(value)) return undefined;
+  const details: Record<string, string | number | boolean | null> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (
+      item !== null &&
+      typeof item !== 'string' &&
+      typeof item !== 'number' &&
+      typeof item !== 'boolean'
+    )
+      throw new PersistenceError(
+        'DATA_MAPPING_FAILED',
+        'Score reason details must contain scalar JSON values.',
+      );
+    details[key] = item;
+  }
+  return details;
+}
+
+function parseNormalizedPayload(value: unknown): EnrichedNormalizedJob {
+  const json = fromPrismaJson(value);
+  if (
+    !isJsonObject(json) ||
+    typeof json['id'] !== 'string' ||
+    typeof json['inputRevisionNumber'] !== 'number' ||
+    typeof json['normalizedTitle'] !== 'string' ||
+    typeof json['titleComparisonKey'] !== 'string' ||
+    typeof json['normalizedCompany'] !== 'string' ||
+    typeof json['companyComparisonKey'] !== 'string' ||
+    !isJsonObject(json['location']) ||
+    !Array.isArray(json['experienceRequirements']) ||
+    !Array.isArray(json['educationRequirements']) ||
+    !Array.isArray(json['languageRequirements']) ||
+    !Array.isArray(json['skillRequirements']) ||
+    !Array.isArray(json['workAuthorizationRequirements'])
+  )
+    throw new PersistenceError(
+      'DATA_MAPPING_FAILED',
+      'Normalized job payload is malformed.',
+    );
+  return json as unknown as EnrichedNormalizedJob;
 }
 
 export class PrismaCollectionRunRepository implements CollectionRunRepository {
@@ -1031,6 +1303,6 @@ function processingEmploymentType(value: string): EmploymentType {
   );
 }
 
-function isJsonObject(value: JsonValue): value is Record<string, JsonValue> {
+function isJsonObject(value: unknown): value is Record<string, JsonValue> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

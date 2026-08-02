@@ -1,20 +1,31 @@
-import type { ScoringComponentKey, ScoringWeights } from './scoring-config.js';
-import type { Percentage } from './value-objects.js';
+import type { ScoringComponentKey } from './scoring-config.js';
+
+export type ScoreReasonImpact =
+  'POSITIVE' | 'NEGATIVE' | 'NEUTRAL' | 'MISSING_DATA';
+
+export interface ScoreReason {
+  readonly code: string;
+  readonly message: string;
+  readonly impact: ScoreReasonImpact;
+  readonly details?: Readonly<Record<string, string | number | boolean | null>>;
+}
 
 export interface ScoreComponentResult {
   readonly key: ScoringComponentKey;
-  readonly rawScore: Percentage;
-  readonly weight: ScoringWeights[ScoringComponentKey];
-  readonly contribution: Percentage;
-  readonly reasons: readonly string[];
+  readonly rawScore: number;
+  readonly weight: number;
+  readonly contribution: number;
+  readonly reasons: readonly ScoreReason[];
+  readonly confidence: number;
 }
 
 export interface ScoreResult {
-  readonly totalScore: Percentage;
+  readonly totalScore: number;
+  readonly opportunityScore: number;
   readonly selectedTrackId: string;
   readonly components: readonly ScoreComponentResult[];
-  readonly positiveReasons: readonly string[];
-  readonly concerns: readonly string[];
+  readonly positiveReasons: readonly ScoreReason[];
+  readonly concerns: readonly ScoreReason[];
   readonly missingData: readonly string[];
-  readonly completeness: Percentage;
+  readonly completeness: number;
 }

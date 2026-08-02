@@ -15,6 +15,7 @@ export {
   PrismaJobRepository,
   PrismaJobSourceRepository,
   PrismaRecommendationRepository,
+  PrismaRecommendationBatchRepository,
   PrismaScoreRepository,
 } from './persistence/repositories.js';
 export { AbortableSleeper } from './http/abortable-sleeper.js';

@@ -34,6 +34,9 @@ export function mapProfile(document: ProfileDocument): CandidateProfile {
         : { institution: record.institution }),
     })),
     professionalExperienceSummary: candidate.professionalExperienceSummary,
+    ...(candidate.totalYearsExperience === undefined
+      ? {}
+      : { totalYearsExperience: candidate.totalYearsExperience }),
     skills: candidate.skills.map((skill) => ({
       name: skill.name,
       ...(skill.yearsOfExperience === undefined
@@ -153,6 +156,7 @@ export function mapScoring(document: ScoringDocument): ScoringConfig {
         document.weights.applicationSimplicity,
       ),
     },
+    settings: document.settings,
   };
 }
 

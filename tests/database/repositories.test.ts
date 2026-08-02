@@ -14,16 +14,21 @@ import {
   saveRecommendation,
   saveScore,
   ProcessCollectedJobs,
+  CreateRecommendations,
   TransactionalProcessingRepository,
+  TransactionalRecommendationBatchRepository,
   updateJobStatus,
   upsertJob,
   upsertJobSource,
   type ScoreWrite,
+  type RecommendationBatchRepository,
+  type RecommendationBatchWrite,
   type JobCollector,
   type BrowserPageRenderer,
   type HtmlPageAcquirer,
 } from '../../src/application/index.js';
 import {
+  createPercentage,
   normalizeJobForProcessing,
   type NormalizedJobPosting,
 } from '../../src/domain/index.js';
@@ -35,24 +40,27 @@ import {
 } from '../../src/infrastructure/index.js';
 
 let client: PrismaClient;
+let clientForCleanup: PrismaClient | undefined;
 let transactions: PrismaTransactionManager;
 
 beforeAll(() => {
   const databaseUrl = requireTestDatabaseUrl();
   client = createPrismaClient(databaseUrl);
+  clientForCleanup = client;
   transactions = new PrismaTransactionManager(client);
 });
 
 afterAll(async () => {
-  await client.$disconnect();
+  await clientForCleanup?.$disconnect();
 });
 
 beforeEach(async () => {
-  await client.jobProcessingDecision.deleteMany();
-  await client.jobProcessingRun.deleteMany();
   await client.recommendation.deleteMany();
+  await client.recommendationBatch.deleteMany();
   await client.scoreComponent.deleteMany();
   await client.jobScore.deleteMany();
+  await client.jobProcessingDecision.deleteMany();
+  await client.jobProcessingRun.deleteMany();
   await client.collectionRunSourceResult.deleteMany();
   await client.collectionRun.deleteMany();
   await client.jobRevision.deleteMany();
@@ -64,6 +72,124 @@ beforeEach(async () => {
 });
 
 describe('PostgreSQL persistence repositories', () => {
+  it('persists and idempotently retrieves full recommendation batches', async () => {
+    await persistSource('source-a', 'Source A');
+    await upsertJob(transactions, makePosting());
+    await new ProcessCollectedJobs(
+      new TransactionalProcessingRepository(transactions),
+      { now: () => new Date('2026-07-30T10:00:00.000Z') },
+      { debug() {}, info() {}, warn() {}, error() {} },
+      new Sha256ProcessingHasher(),
+    ).execute(processingInput());
+    const makeService = () =>
+      new CreateRecommendations(
+        new TransactionalRecommendationBatchRepository(transactions),
+        { now: () => new Date('2026-07-30T12:00:00.000Z') },
+        new Sha256ProcessingHasher(),
+      );
+    const results = await Promise.all([
+      makeService().execute(recommendationInput()),
+      makeService().execute(recommendationInput()),
+    ]);
+    const first = results.find((item) => !item.reused);
+    const repeated = results.find((item) => item.reused);
+    expect(first).toMatchObject({ selectedCount: 1, reused: false });
+    if (first === undefined) throw new Error('Expected one created batch.');
+    expect(first.items[0]).toMatchObject({ rank: 1, inputRevisionNumber: 0 });
+    expect(first.items[0]?.score.components).toHaveLength(13);
+    expect(repeated).toMatchObject({ id: first.id, reused: true });
+    expect(await client.recommendationBatch.count()).toBe(1);
+    expect(await client.recommendation.count()).toBe(1);
+    expect(await client.jobScore.count()).toBe(1);
+  });
+
+  it('excludes authoritative APPLIED and SKIPPED statuses', async () => {
+    await persistSource('source-a', 'Source A');
+    const applied = await upsertJob(transactions, makePosting());
+    const skipped = await upsertJob(
+      transactions,
+      makePosting(
+        {
+          source: {
+            sourceId: 'source-a',
+            externalId: 'external-b',
+            sourceUrl: 'https://jobs.example.test/b',
+          },
+          title: 'Analytics Engineer',
+          company: 'Other Labs',
+        },
+        {
+          canonicalUrl: 'https://jobs.example.test/b',
+          normalizedTitle: 'analytics engineer',
+          normalizedCompany: 'other labs',
+        },
+      ),
+    );
+    await new ProcessCollectedJobs(
+      new TransactionalProcessingRepository(transactions),
+      { now: () => new Date('2026-07-30T10:00:00.000Z') },
+      { debug() {}, info() {}, warn() {}, error() {} },
+      new Sha256ProcessingHasher(),
+    ).execute(processingInput());
+    await updateJobStatus(transactions, {
+      jobId: applied.job.id,
+      targetStatus: 'APPLIED',
+      changedAt: '2026-07-30T11:00:00.000Z',
+    });
+    await updateJobStatus(transactions, {
+      jobId: skipped.job.id,
+      targetStatus: 'SKIPPED',
+      changedAt: '2026-07-30T11:00:00.000Z',
+    });
+
+    const batch = await new CreateRecommendations(
+      new TransactionalRecommendationBatchRepository(transactions),
+      { now: () => new Date('2026-07-30T12:00:00.000Z') },
+      new Sha256ProcessingHasher(),
+    ).execute(recommendationInput());
+
+    expect(batch).toMatchObject({ selectedCount: 0, items: [] });
+    expect(await client.jobScore.count()).toBe(0);
+    expect(await client.recommendation.count()).toBe(0);
+  });
+
+  it('rolls back a recommendation batch when a score write fails', async () => {
+    await persistSource('source-a', 'Source A');
+    await upsertJob(transactions, makePosting());
+    await new ProcessCollectedJobs(
+      new TransactionalProcessingRepository(transactions),
+      { now: () => new Date('2026-07-30T10:00:00.000Z') },
+      { debug() {}, info() {}, warn() {}, error() {} },
+      new Sha256ProcessingHasher(),
+    ).execute(processingInput());
+    const persisted = new TransactionalRecommendationBatchRepository(
+      transactions,
+    );
+    const corruptingRepository: RecommendationBatchRepository = {
+      listEligibleCandidates: (limit) =>
+        persisted.listEligibleCandidates(limit),
+      saveBatch: (input: RecommendationBatchWrite) =>
+        persisted.saveBatch({
+          ...input,
+          items: input.items.map((item) => ({
+            ...item,
+            processingDecisionId: '00000000-0000-4000-8000-000000000000',
+          })),
+        }),
+    };
+
+    await expect(
+      new CreateRecommendations(
+        corruptingRepository,
+        { now: () => new Date('2026-07-30T12:00:00.000Z') },
+        new Sha256ProcessingHasher(),
+      ).execute(recommendationInput()),
+    ).rejects.toThrow();
+    expect(await client.recommendationBatch.count()).toBe(0);
+    expect(await client.jobScore.count()).toBe(0);
+    expect(await client.recommendation.count()).toBe(0);
+  });
+
   it('persists normalized processing decisions and skips an identical rerun', async () => {
     await persistSource('source-a', 'Source A');
     await upsertJob(
@@ -739,6 +865,86 @@ function processingInput() {
       removableTrackingParameters: ['utm_source'],
       companyLegalSuffixes: ['GmbH'],
     },
+    signal: new AbortController().signal,
+  } as const;
+}
+
+function recommendationInput() {
+  const processing = processingInput();
+  return {
+    limit: 20,
+    candidate: { ...processing.candidate, totalYearsExperience: 4 },
+    search: {
+      tracks: [
+        {
+          id: 'platform',
+          displayName: 'Platform',
+          enabled: true,
+          targetTitles: ['Platform Engineer'],
+          includeKeywords: [],
+          excludeKeywords: [],
+          preferredSkills: [],
+          preferredIndustries: [],
+          priority: 1,
+          recommendationQuota: 5,
+        },
+      ],
+      preferences: {
+        preferredCountries: ['DE'],
+        allowedRemotePolicies: ['hybrid' as const],
+        willingToRelocate: false,
+        relocationCountries: [],
+        preferredCompanySizes: [],
+        allowedEmploymentTypes: ['full-time' as const],
+        excludedSeniorityLevels: [],
+        excludedCompanies: [],
+        excludedIndustries: [],
+        requiredExperience: { minimumYears: 0 },
+        dailyRecommendationLimit: 20,
+        minimumAcceptableScore: createPercentage(0),
+        maximumRecommendationsPerCompany: 5,
+        hardFilters: processing.hardFilters,
+      },
+    },
+    scoring: {
+      weights: {
+        titleRelevance: createPercentage(18),
+        skills: createPercentage(16),
+        experience: createPercentage(12),
+        location: createPercentage(10),
+        workAuthorization: createPercentage(10),
+        education: createPercentage(6),
+        language: createPercentage(6),
+        companyPreference: createPercentage(5),
+        freshness: createPercentage(7),
+        salary: createPercentage(4),
+        sourceQuality: createPercentage(4),
+        applicationSimplicity: createPercentage(2),
+      },
+      settings: {
+        titleAliases: [],
+        skillAliases: [],
+        experienceToleranceYears: 1,
+        freshnessFullScoreDays: 3,
+        freshnessHorizonDays: 60,
+        sourceQuality: { 'generic-page': 70 },
+        selector: {
+          maximumSameTitle: 3,
+          unknownCompanyJobsShareCap: false,
+        },
+      },
+    },
+    sources: [
+      {
+        id: 'source-a',
+        type: 'generic-page' as const,
+        enabled: true,
+        displayName: 'Source A',
+        tags: [],
+        trackIds: [],
+        settings: { url: 'https://jobs.example.test' },
+      },
+    ],
     signal: new AbortController().signal,
   } as const;
 }

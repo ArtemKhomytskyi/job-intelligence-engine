@@ -26,3 +26,7 @@ export * from './processing/ports.js';
 export * from './processing/fingerprints.js';
 export * from './processing/process-collected-jobs.js';
 export * from './processing/transactional-processing-repository.js';
+export * from './recommendations/models.js';
+export * from './recommendations/ports.js';
+export * from './recommendations/create-recommendations.js';
+export * from './recommendations/transactional-recommendation-repository.js';

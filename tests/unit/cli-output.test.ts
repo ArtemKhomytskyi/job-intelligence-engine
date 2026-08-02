@@ -5,6 +5,7 @@ import {
   formatConfigurationSummary,
   formatHelp,
   formatProcessingSummary,
+  formatRecommendationBatch,
 } from '../../src/interfaces/index.js';
 
 describe('CLI output', () => {
@@ -91,5 +92,61 @@ describe('CLI output', () => {
         eligibleCount: 2,
       },
     );
+  });
+
+  it('formats ordered recommendation batches and empty results', () => {
+    const batch = {
+      id: 'batch-a',
+      inputHash: 'hash-a',
+      evaluationTime: '2026-07-30T12:00:00.000Z',
+      requestedLimit: 20,
+      selectedCount: 1,
+      configurationFingerprint: 'config-a',
+      scoringVersion: 'v1',
+      selectorVersion: 'selector-v1',
+      createdAt: '2026-07-30T12:00:00.000Z',
+      reused: false,
+      items: [
+        {
+          jobId: 'job-a',
+          processingDecisionId: 'decision-a',
+          inputRevisionNumber: 1,
+          rank: 1,
+          scoreId: 'score-a',
+          title: 'Data Engineer',
+          company: 'Synthetic Labs',
+          score: {
+            totalScore: 88.5,
+            opportunityScore: 90,
+            selectedTrackId: 'data',
+            components: [],
+            positiveReasons: [
+              {
+                code: 'TITLE_EXACT_MATCH',
+                message: 'Matched.',
+                impact: 'POSITIVE' as const,
+              },
+            ],
+            concerns: [],
+            missingData: ['salary'],
+            completeness: 0.8,
+          },
+        },
+      ],
+    };
+    expect(formatRecommendationBatch(batch, false)).toContain(
+      '1. Data Engineer',
+    );
+    expect(formatRecommendationBatch(batch, false)).toContain('score 88.50');
+    expect(JSON.parse(formatRecommendationBatch(batch, true))).toMatchObject({
+      id: 'batch-a',
+      selectedCount: 1,
+    });
+    expect(
+      formatRecommendationBatch(
+        { ...batch, selectedCount: 0, items: [] },
+        false,
+      ),
+    ).toContain('No eligible recommendations');
   });
 });

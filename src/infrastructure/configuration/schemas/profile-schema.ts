@@ -45,6 +45,7 @@ export const profileSchema = z.strictObject({
     summary: nonEmptyStringSchema.optional(),
     education: z.array(educationSchema),
     professionalExperienceSummary: nonEmptyStringSchema,
+    totalYearsExperience: z.number().finite().min(0).max(80).optional(),
     skills: z.array(skillSchema),
     languages: z.array(languageSchema),
     citizenships: z.array(countryCodeSchema),

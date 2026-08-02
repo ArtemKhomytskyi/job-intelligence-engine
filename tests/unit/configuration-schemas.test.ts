@@ -104,4 +104,31 @@ describe('configuration schemas', () => {
       }).success,
     ).toBe(false);
   });
+
+  it('rejects invalid scoring confidence inputs, aliases, and selector caps', () => {
+    const weights = {
+      titleRelevance: 18,
+      skills: 16,
+      experience: 12,
+      location: 10,
+      workAuthorization: 10,
+      education: 6,
+      language: 6,
+      companyPreference: 5,
+      freshness: 7,
+      salary: 4,
+      sourceQuality: 4,
+      applicationSimplicity: 2,
+    };
+    const settings = {
+      titleAliases: [{ canonical: '', aliases: ['ml engineer'] }],
+      skillAliases: [],
+      experienceToleranceYears: -1,
+      freshnessFullScoreDays: 3,
+      freshnessHorizonDays: 60,
+      sourceQuality: { greenhouse: 101 },
+      selector: { maximumSameTitle: 0, unknownCompanyJobsShareCap: false },
+    };
+    expect(scoringSchema.safeParse({ weights, settings }).success).toBe(false);
+  });
 });

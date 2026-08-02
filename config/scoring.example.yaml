@@ -12,3 +12,27 @@ weights:
   salary: 4
   sourceQuality: 4
   applicationSimplicity: 2
+
+settings:
+  titleAliases:
+    - canonical: machine learning engineer
+      aliases: [ml engineer]
+    - canonical: quantitative researcher
+      aliases: [quant researcher]
+  skillAliases:
+    - canonical: postgresql
+      aliases: [postgres]
+    - canonical: javascript
+      aliases: [js]
+  experienceToleranceYears: 1
+  freshnessFullScoreDays: 3
+  freshnessHorizonDays: 60
+  sourceQuality:
+    greenhouse: 90
+    lever: 90
+    generic-jsonld: 80
+    generic-page: 70
+    generic-job-list: 60
+  selector:
+    maximumSameTitle: 3
+    unknownCompanyJobsShareCap: false
