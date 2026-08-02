@@ -7,6 +7,7 @@ import type {
   RecommendationReportQuery,
   UserApplicationStatus,
 } from '../../src/application/index.js';
+import { PipelineStageError } from '../../src/application/index.js';
 import { NodeLocalServer } from '../../src/infrastructure/index.js';
 import {
   createLocalReportHandler,
@@ -90,13 +91,45 @@ describe('local recommendation report browser flow', () => {
       page.getByText('APPLIED', { exact: true }).first().textContent(),
     ).resolves.toBe('APPLIED');
   });
+
+  it('shows a safe failed manual pipeline result and retained run state', async () => {
+    if (browser === undefined) throw new Error('Browser did not start.');
+    const page = await browser.newPage();
+    page.setDefaultTimeout(5_000);
+    page.setDefaultNavigationTimeout(5_000);
+
+    await page.goto(`${baseUrl}/recommendations`);
+    await page.getByRole('button', { name: 'Run pipeline' }).click();
+    await page.waitForURL(/\/runs\/latest\?failure=collection$/u);
+
+    await page.getByRole('heading', { name: 'Pipeline run failed' }).waitFor();
+    await expect(
+      page.getByText('Collection', { exact: true }).last().textContent(),
+    ).resolves.toBe('Collection');
+    expect(await page.locator('main').textContent()).toContain(
+      'Collection did not produce a successful source result',
+    );
+    expect(await page.locator('main').textContent()).toContain('Not run');
+    expect(await page.locator('main').textContent()).not.toContain(
+      'BROWSER_INTERNAL_SENTINEL',
+    );
+
+    await page
+      .getByRole('link', { name: 'View latest pipeline state' })
+      .click();
+    await page.waitForURL(/\/runs\/latest$/u);
+    expect(await page.locator('main').textContent()).toContain('FAILED');
+  });
 });
 
 class BrowserRuntime implements LocalReportRuntime {
   public status: 'NEW' | 'VIEWED' | 'APPLIED' | 'SKIPPED' = 'NEW';
   public lastQuery: RecommendationReportQuery | undefined;
   public readonly pipeline = {
-    execute: () => Promise.reject(new Error('not used')),
+    execute: () =>
+      Promise.reject(
+        new PipelineStageError('collection', 'BROWSER_INTERNAL_SENTINEL'),
+      ),
   };
   public readonly getReport = {
     execute: (query: RecommendationReportQuery) => {
@@ -157,6 +190,20 @@ class BrowserRuntime implements LocalReportRuntime {
       items: [item],
       availableTrackIds: ['data'],
       availableCompanies: ['Synthetic Labs'],
+      latestState: {
+        collection: {
+          runId: 'failed-browser-collection',
+          status: 'FAILED',
+          startedAt: '2026-08-02T12:00:00.000Z',
+          completedAt: '2026-08-02T12:00:02.000Z',
+          sourcesAttempted: 2,
+          sourcesSucceeded: 0,
+          sourcesFailed: 2,
+          jobsCollected: 0,
+          jobsCreated: 0,
+          jobsUpdated: 0,
+        },
+      },
     };
   }
 

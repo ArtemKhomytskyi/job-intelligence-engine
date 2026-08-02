@@ -229,6 +229,14 @@ data rollback is planned because the initial design needs no schema change.
   credentials could not be established safely. Docker CLI is absent. No
   database was modified.
 - 2026-08-02: Host runtime is Node 24.18.0/npm 11.16.0, not required Node 22/npm 10. The lockfile was not regenerated or modified.
+- 2026-08-02: Manual smoke testing exposed expected collection-stage failures
+  reaching the generic 500 mapper. The HTTP boundary now catches only
+  `PipelineStageError`, uses a 303 redirect to a safe failure summary, and reads
+  the already-persisted latest state for collection counts. The summary marks
+  downstream stages as not run even when older downstream records remain.
+  Unexpected exceptions retain the generic 500 behavior. HTTP and Playwright
+  regressions cover the failure, persisted state, duplicate submissions, and
+  information-disclosure boundary.
 
 ## Final outcome
 

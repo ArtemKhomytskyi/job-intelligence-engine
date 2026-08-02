@@ -25,14 +25,21 @@ and immutable status history. Scores are never recalculated by the report.
 - `GET /recommendations/:id` renders complete details and may auto-mark VIEWED.
 - `POST /recommendations/:id/status` explicitly sets VIEWED, APPLIED, or SKIPPED.
 - `GET /runs/latest` renders latest collection, processing, and batch records.
+  A validated `failure` marker renders a safe summary for the failed manual
+  attempt while retaining links to the ordinary persisted-state view.
 - `POST /actions/run` invokes the shared full-pipeline application service.
+  Expected `PipelineStageError` results use a 303 redirect to the safe failure
+  summary; other exceptions continue to use the generic 500 page.
 - `GET /health` checks PostgreSQL and returns minimal JSON.
 - `GET /assets/app.css` and `GET /assets/app.js` serve local assets.
 
 Unknown filters are 400 responses, missing recommendations are 404, active-run
-conflicts are 409, and unexpected/storage failures are safe 500 pages. Stack
-traces, environment values, filesystem paths, database URLs, and Prisma errors
-are not rendered.
+conflicts are 409, and unexpected/storage failures are safe 500 pages. A
+controlled pipeline failure identifies the failed stage, shows safe collection
+counts from persisted state, and explicitly identifies downstream stages that
+did not run. It never renders the underlying error message. Stack traces,
+environment values, filesystem paths, database URLs, source credentials, and
+Prisma errors are not rendered.
 
 ## Filters and ordering
 

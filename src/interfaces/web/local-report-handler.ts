@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   ActivePipelineRunError,
   ApplicationStatusError,
+  PipelineStageError,
   RecommendationNotFoundError,
   ReportQueryError,
   USER_APPLICATION_STATUSES,
@@ -10,6 +11,7 @@ import {
   type DatabaseHealthPort,
   type FullPipelineRunner,
   type Logger,
+  type PipelineStage,
   type RecommendationDetails,
   type RecommendationReport,
   type RecommendationReportQuery,
@@ -20,6 +22,7 @@ import {
   APP_CSS,
   APP_JS,
   renderErrorPage,
+  renderPipelineFailurePage,
   renderRecommendationDetails,
   renderRecommendationReport,
   renderRunsPage,
@@ -119,7 +122,14 @@ async function handleRequest(
   if (method === 'GET' && url.pathname === '/runs/latest') {
     const query = parseRecommendationReportQuery({ sort: 'rank' });
     const report = await dependencies.runtime.getReport.execute(query);
-    sendHtml(response, 200, renderRunsPage(report.latestState ?? {}));
+    const failedStage = parsePipelineFailureStage(url.searchParams);
+    sendHtml(
+      response,
+      200,
+      failedStage === undefined
+        ? renderRunsPage(report.latestState ?? {})
+        : renderPipelineFailurePage(failedStage, report.latestState ?? {}),
+    );
     return;
   }
   const statusMatch = STATUS_PATH.exec(url.pathname);
@@ -143,13 +153,27 @@ async function handleRequest(
   if (method === 'POST' && url.pathname === '/actions/run') {
     requireSameOrigin(request);
     await readForm(request);
-    await dependencies.runtime.pipeline.execute({
-      initiatedBy: 'web',
-      collectionConcurrency: dependencies.collectionConcurrency,
-      processingLimit: dependencies.processingLimit,
-      evaluationTime: new Date(),
-      signal: dependencies.pipelineSignal,
-    });
+    try {
+      await dependencies.runtime.pipeline.execute({
+        initiatedBy: 'web',
+        collectionConcurrency: dependencies.collectionConcurrency,
+        processingLimit: dependencies.processingLimit,
+        evaluationTime: new Date(),
+        signal: dependencies.pipelineSignal,
+      });
+    } catch (error) {
+      if (!(error instanceof PipelineStageError)) throw error;
+      dependencies.logger.warn('manual_pipeline_failed', {
+        initiatedBy: 'web',
+        failedStage: error.stage,
+      });
+      redirect(
+        response,
+        `/runs/latest?failure=${encodeURIComponent(error.stage)}`,
+        303,
+      );
+      return;
+    }
     redirect(response, '/recommendations?notice=pipeline-complete', 303);
     return;
   }
@@ -192,6 +216,25 @@ async function handleRequest(
       'Page not found',
       'The requested local report page does not exist.',
     ),
+  );
+}
+
+function parsePipelineFailureStage(
+  searchParams: URLSearchParams,
+): PipelineStage | undefined {
+  const values = searchParams.getAll('failure');
+  if (values.length === 0) return undefined;
+  if (values.length !== 1 || !isPipelineStage(values[0]))
+    throw new ReportQueryError('Unknown pipeline failure stage.');
+  return values[0];
+}
+
+function isPipelineStage(value: string | undefined): value is PipelineStage {
+  return (
+    value === 'configuration' ||
+    value === 'collection' ||
+    value === 'processing' ||
+    value === 'recommendations'
   );
 }
 
