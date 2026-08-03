@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ActivePipelineRunError,
+  ConfigurationError,
   PipelineStageError,
   RunFullPipeline,
   SingleActivePipelineRunner,
@@ -58,6 +59,25 @@ describe('full pipeline application service', () => {
       Promise.reject(new Error('invalid configuration'));
     await expect(new RunFullPipeline(ports).execute(input())).rejects.toThrow(
       'invalid configuration',
+    );
+    expect(events).toEqual([]);
+  });
+
+  it('creates no collection run when placeholder configuration is rejected', async () => {
+    const events: string[] = [];
+    const ports = dependencies(events);
+    ports.configuration.load = () =>
+      Promise.reject(
+        new ConfigurationError([
+          {
+            code: 'PLACEHOLDER_SOURCE_NOT_ALLOWED',
+            section: 'sources',
+            message: 'Configure a real source before collection.',
+          },
+        ]),
+      );
+    await expect(new RunFullPipeline(ports).execute(input())).rejects.toThrow(
+      'Configure a real source before collection.',
     );
     expect(events).toEqual([]);
   });

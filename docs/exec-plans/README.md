@@ -7,6 +7,7 @@
 - [005: Normalization, deduplication, and hard filters](005-normalization-deduplication-filters.md)
 - [006: Deterministic scoring and recommendations](006-deterministic-scoring-recommendations.md)
 - [007: Local web report and end-to-end pipeline](007-local-web-report-end-to-end.md)
+- [008: Real source readiness and first-run setup](008-real-source-readiness.md)
 
 This directory holds living plans for substantial implementation work. Copy `TEMPLATE.md`, replace every prompt with concrete project facts, and update it throughout implementation. Keep completed plans as decision and verification history unless they contain sensitive information; sensitive information must never enter a plan.
 

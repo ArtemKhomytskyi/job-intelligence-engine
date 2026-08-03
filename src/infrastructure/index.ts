@@ -45,6 +45,7 @@ export {
   renderRecommendationDetails,
   renderRecommendationReport,
   renderRunsPage,
+  renderSetupPage,
 } from './web/html-renderer.js';
 export {
   LocalServerError,

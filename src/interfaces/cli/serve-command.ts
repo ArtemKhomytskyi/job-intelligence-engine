@@ -33,7 +33,7 @@ export async function runServe(
       configDirectory: options.configDirectory,
       logger,
     });
-    await runtime.validateConfiguration();
+    const sourceReadiness = await runtime.inspectSourceReadiness();
     await runtime.health.check();
     server = new NodeLocalServer(
       createLocalReportHandler({
@@ -42,6 +42,7 @@ export async function runServe(
         pipelineSignal: options.signal,
         collectionConcurrency: options.concurrency,
         processingLimit: options.processingLimit,
+        sourceReadiness,
       }),
     );
     const address = await server.start(options.host, options.port);

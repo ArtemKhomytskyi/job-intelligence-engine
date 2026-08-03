@@ -8,10 +8,15 @@ export async function createTemporaryConfigDirectory(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'jie-config-test-'));
   await Promise.all(
     SECTIONS.map(async (section) => {
-      const content = await readFile(
+      let content = await readFile(
         join('config', `${section}.example.yaml`),
         'utf8',
       );
+      if (section === 'sources') {
+        content = content
+          .replace('enabled: false', 'enabled: true')
+          .replaceAll('replace-with-real-board-token', 'synthetic-board-token');
+      }
       await writeFile(join(directory, `${section}.yaml`), content, 'utf8');
     }),
   );

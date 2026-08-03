@@ -28,7 +28,18 @@ Validate the safe tracked examples:
 npm run cli -- validate-config --examples
 ```
 
-To use private configuration, copy the four `config/*.example.yaml` files to their corresponding `config/*.yaml` names, edit the private copies, and run `npm run cli -- validate-config`. See the [configuration guide](docs/configuration/README.md) for fields, commands, and error behavior.
+To use private configuration, copy the four `config/*.example.yaml` files to
+their corresponding `config/*.yaml` names and edit the Git-ignored copies. The
+tracked source file is documentation only: all templates are disabled and its
+placeholder URLs and ATS identifiers must be replaced before enabling a source.
+
+```sh
+npm run cli -- sources:check
+npm run cli -- validate-config
+```
+
+See the [configuration guide](docs/configuration/README.md) for fields,
+commands, and error behavior.
 
 Copy `.env.example` to `.env`. Its `DATABASE_URL` must use the same user, password, database, and exposed port as the `POSTGRES_*` values.
 
@@ -45,6 +56,7 @@ Unit tests do not require PostgreSQL. Apply the committed storage migration and 
 npm run prisma:migrate:deploy
 npm run cli -- db:check
 npm run cli -- db:status
+npm run cli -- sources:check
 npm run cli -- collect --json
 npm run cli -- process --limit 1000 --json
 npm run cli -- recommend --limit 20 --json
@@ -52,12 +64,15 @@ npm run cli -- run
 npm run cli -- serve
 ```
 
-The final two commands are the normal V1 workflow. `run` executes the complete
+The final two commands are the normal V1 workflow after at least one real source
+is enabled. `run` executes the complete
 pipeline; `serve` validates configuration/database connectivity and starts the
 local report at [http://127.0.0.1:3000](http://127.0.0.1:3000). It supports
 recommendation filters/sorts/details, persisted score explainability, safe
 descriptions and direct apply links, VIEWED/APPLIED/SKIPPED tracking, latest run
-state, and a manual full-pipeline action. See the [CLI guide](docs/cli.md),
+state, a first-run setup page, and a guarded manual full-pipeline action. `serve`
+may start before source setup is complete so instructions remain available at
+`/setup`; collection cannot start from that state. See the [CLI guide](docs/cli.md),
 [local report architecture](docs/architecture/local-web-report.md), and
 [end-to-end pipeline architecture](docs/architecture/end-to-end-pipeline.md).
 

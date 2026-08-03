@@ -26,6 +26,10 @@ import {
   type UserApplicationStatus,
 } from '../../application/index.js';
 import {
+  inspectSourceReadiness,
+  type SourceReadinessReport,
+} from '../../domain/index.js';
+import {
   AbortableSleeper,
   CheerioDocumentExtractor,
   FileSystemConfigReader,
@@ -68,6 +72,7 @@ export interface LocalRuntime {
   };
   readonly health: DatabaseHealthPort;
   validateConfiguration(): Promise<void>;
+  inspectSourceReadiness(): Promise<SourceReadinessReport>;
   close(): Promise<void>;
 }
 
@@ -164,6 +169,13 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     async validateConfiguration(): Promise<void> {
       await loadLocalConfiguration(options.configDirectory);
     },
+    async inspectSourceReadiness(): Promise<SourceReadinessReport> {
+      const configuration = await loadLocalConfiguration(
+        options.configDirectory,
+        'inspection',
+      );
+      return inspectSourceReadiness(configuration.sources);
+    },
     async close(): Promise<void> {
       await browser.close();
       await client.$disconnect();
@@ -171,13 +183,16 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   };
 }
 
-function loadLocalConfiguration(configDirectory: string) {
+function loadLocalConfiguration(
+  configDirectory: string,
+  validationMode: 'runtime' | 'inspection' = 'runtime',
+) {
   return loadConfiguration(
     {
       reader: new FileSystemConfigReader(),
       decoder: new ZodYamlConfigurationDecoder(),
     },
-    { directory: configDirectory },
+    { directory: configDirectory, validationMode },
   );
 }
 

@@ -35,7 +35,7 @@ describe('configuration loading', () => {
     expect(summarizeConfiguration(bundle)).toEqual({
       candidateDisplayName: 'Artem',
       enabledTrackCount: 5,
-      enabledSourceCount: 3,
+      enabledSourceCount: 1,
       dailyRecommendationLimit: 20,
     });
   });
@@ -105,8 +105,8 @@ describe('configuration loading', () => {
     await replaceInConfig(
       directory,
       'sources',
-      'id: example-lever',
-      'id: example-greenhouse',
+      'id: my-lever-source',
+      'id: my-greenhouse-source',
     );
     await expectIssue(directory, 'CONFIG_DUPLICATE_ID');
   });
@@ -144,7 +144,7 @@ describe('configuration loading', () => {
     await replaceInConfig(
       directory,
       'sources',
-      'https://careers.example.com/jobs',
+      'https://replace-with-real-careers-url.example/jobs',
       'not-a-url',
     );
     await expectIssue(directory, 'CONFIG_SCHEMA_INVALID');
@@ -194,6 +194,23 @@ describe('configuration loading', () => {
       'utf8',
     );
     await expectIssue(directory, 'CONFIG_REFERENCE_INVALID');
+  });
+
+  it('rejects enabled placeholders but accepts disabled templates', async () => {
+    await replaceInConfig(
+      directory,
+      'sources',
+      'enabled: false',
+      'enabled: true',
+    );
+    await expectIssue(directory, 'PLACEHOLDER_SOURCE_NOT_ALLOWED');
+
+    const freshDirectory = await createTemporaryConfigDirectory();
+    try {
+      await expect(loadFrom(freshDirectory)).resolves.toBeDefined();
+    } finally {
+      await removeTemporaryConfigDirectory(freshDirectory);
+    }
   });
 
   it('rejects unknown track references and incompatible relocation preferences', async () => {

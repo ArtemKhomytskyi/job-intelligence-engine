@@ -18,6 +18,7 @@ import {
   type UpdateApplicationStatusResult,
   type UserApplicationStatus,
 } from '../../application/index.js';
+import type { SourceReadinessReport } from '../../domain/index.js';
 import {
   APP_CSS,
   APP_JS,
@@ -26,11 +27,16 @@ import {
   renderRecommendationDetails,
   renderRecommendationReport,
   renderRunsPage,
+  renderSetupPage,
 } from '../../infrastructure/index.js';
 
 const MAX_FORM_BYTES = 8_192;
 const RECOMMENDATION_PATH = /^\/recommendations\/([^/]+)$/u;
 const STATUS_PATH = /^\/recommendations\/([^/]+)\/status$/u;
+const DEFAULT_SOURCE_READINESS: SourceReadinessReport = {
+  sources: [],
+  hasRealEnabledSource: true,
+};
 
 export interface LocalReportHandlerDependencies {
   readonly runtime: LocalReportRuntime;
@@ -38,6 +44,7 @@ export interface LocalReportHandlerDependencies {
   readonly pipelineSignal: AbortSignal;
   readonly collectionConcurrency: number;
   readonly processingLimit: number;
+  readonly sourceReadiness?: SourceReadinessReport;
 }
 
 export interface LocalReportRuntime {
@@ -119,6 +126,19 @@ async function handleRequest(
     await renderList(dependencies, response, url);
     return;
   }
+  if (method === 'GET' && url.pathname === '/setup') {
+    sendHtml(
+      response,
+      200,
+      renderSetupPage(
+        getSourceReadiness(dependencies),
+        url.searchParams.get('notice') === 'sources-required'
+          ? 'Add and enable a real job source before running the pipeline.'
+          : undefined,
+      ),
+    );
+    return;
+  }
   if (method === 'GET' && url.pathname === '/runs/latest') {
     const query = parseRecommendationReportQuery({ sort: 'rank' });
     const report = await dependencies.runtime.getReport.execute(query);
@@ -127,7 +147,10 @@ async function handleRequest(
       response,
       200,
       failedStage === undefined
-        ? renderRunsPage(report.latestState ?? {})
+        ? renderRunsPage(
+            report.latestState ?? {},
+            getSourceReadiness(dependencies),
+          )
         : renderPipelineFailurePage(failedStage, report.latestState ?? {}),
     );
     return;
@@ -153,6 +176,11 @@ async function handleRequest(
   if (method === 'POST' && url.pathname === '/actions/run') {
     requireSameOrigin(request);
     await readForm(request);
+    if (!getSourceReadiness(dependencies).hasRealEnabledSource) {
+      dependencies.logger.warn('manual_pipeline_blocked_sources_not_ready');
+      redirect(response, '/setup?notice=sources-required', 303);
+      return;
+    }
     try {
       await dependencies.runtime.pipeline.execute({
         initiatedBy: 'web',
@@ -258,8 +286,15 @@ async function renderList(
     renderRecommendationReport(
       report,
       noticeMessage(url.searchParams.get('notice')),
+      getSourceReadiness(dependencies),
     ),
   );
+}
+
+function getSourceReadiness(
+  dependencies: LocalReportHandlerDependencies,
+): SourceReadinessReport {
+  return dependencies.sourceReadiness ?? DEFAULT_SOURCE_READINESS;
 }
 
 function optionalParameter<Key extends string>(

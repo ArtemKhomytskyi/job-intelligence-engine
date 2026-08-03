@@ -21,9 +21,11 @@ const logger = { debug() {}, info() {}, warn() {}, error() {} };
 let server: NodeLocalServer;
 let baseUrl: string;
 let runtime: FakeRuntime;
+let sourceReadiness: { sources: never[]; hasRealEnabledSource: boolean };
 
 beforeEach(async () => {
   runtime = new FakeRuntime();
+  sourceReadiness = { sources: [], hasRealEnabledSource: true };
   server = new NodeLocalServer(
     createLocalReportHandler({
       runtime,
@@ -31,6 +33,7 @@ beforeEach(async () => {
       pipelineSignal: new AbortController().signal,
       collectionConcurrency: 2,
       processingLimit: 100,
+      sourceReadiness,
     }),
   );
   baseUrl = (await server.start('127.0.0.1', 0)).url;
@@ -170,6 +173,39 @@ describe('local report HTTP interface', () => {
     });
     expect(conflict.status).toBe(409);
     expect(await conflict.text()).toContain('already running');
+  });
+
+  it('renders first-run setup and controls the run action without a 500', async () => {
+    sourceReadiness.hasRealEnabledSource = false;
+
+    const recommendations = await fetch(`${baseUrl}/recommendations`);
+    const recommendationHtml = await recommendations.text();
+    expect(recommendations.status).toBe(200);
+    expect(recommendationHtml).toContain('No real job sources configured.');
+    expect(recommendationHtml).toContain('Set up job sources');
+    expect(recommendationHtml).not.toContain('>Run pipeline<');
+
+    const runs = await fetch(`${baseUrl}/runs/latest`);
+    expect(await runs.text()).toContain('No real job sources configured.');
+
+    const blocked = await fetch(`${baseUrl}/actions/run`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { Origin: baseUrl },
+    });
+    expect(blocked.status).toBe(303);
+    expect(blocked.headers.get('location')).toBe(
+      '/setup?notice=sources-required',
+    );
+    expect(runtime.pipelineInputs).toEqual([]);
+
+    const setup = await fetch(`${baseUrl}${blocked.headers.get('location')!}`);
+    const setupHtml = await setup.text();
+    expect(setup.status).toBe(200);
+    expect(setupHtml).toContain('Configure real job sources');
+    expect(setupHtml).toContain('config/sources.yaml');
+    expect(setupHtml).toContain('npm run cli -- sources:check');
+    expect(setupHtml).not.toContain('Unexpected error');
   });
 
   it('redirects a collection-stage failure to a safe persisted-state page', async () => {

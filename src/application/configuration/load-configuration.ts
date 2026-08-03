@@ -97,6 +97,8 @@ export async function loadConfiguration(
   }
 
   const bundle: ConfigurationBundle = { candidate, search, scoring, sources };
-  validateConfiguration(bundle);
+  validateConfiguration(bundle, {
+    mode: options.validationMode ?? (useExamples ? 'examples' : 'runtime'),
+  });
   return bundle;
 }
