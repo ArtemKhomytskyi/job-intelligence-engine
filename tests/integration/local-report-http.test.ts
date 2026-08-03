@@ -354,6 +354,9 @@ describe('local report HTTP interface', () => {
     expect(diagnostics).toContain('Candidate fit');
     expect(diagnostics).toContain('Score below configured threshold');
     expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
+    const collectionHealth = await fetch(`${baseUrl}/collection-health`);
+    expect(collectionHealth.status).toBe(200);
+    expect(await collectionHealth.text()).toContain('Unknown providers');
     expect(
       (await fetch(`${baseUrl}/assets/app.css`)).headers.get('content-type'),
     ).toContain('text/css');

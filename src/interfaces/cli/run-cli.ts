@@ -12,6 +12,10 @@ import { runFullPipelineCommand } from './run-command.js';
 import { runServe } from './serve-command.js';
 import { runSourcesCheck } from './sources-check-command.js';
 import {
+  runSourceIntelligence,
+  type SourceIntelligenceCommand,
+} from './source-intelligence-command.js';
+import {
   type CommandOutput,
   runValidateConfig,
 } from './validate-config-command.js';
@@ -32,6 +36,8 @@ export async function runCli(
         json: { type: 'boolean', default: false },
         source: { type: 'string', multiple: true, default: [] },
         type: { type: 'string' },
+        url: { type: 'string' },
+        company: { type: 'string' },
         concurrency: { type: 'string', default: '3' },
         limit: { type: 'string' },
         'processing-limit': { type: 'string', default: '1000' },
@@ -48,12 +54,34 @@ export async function runCli(
     }
 
     const command = parsed.positionals[0];
-    if (parsed.positionals.length !== 1) {
+    const sourceIntelligence = isSourceIntelligenceCommand(command);
+    if (
+      parsed.positionals.length !== 1 &&
+      !(command === 'discover-company' && parsed.positionals.length === 2)
+    ) {
       output.writeStderr(
         `Unknown command. Run "npm run cli -- --help" for usage.\n`,
       );
       return 2;
     }
+
+    if (sourceIntelligence)
+      return runSourceIntelligence(
+        command,
+        {
+          configDirectory: parsed.values['config-dir'] ?? 'config',
+          ...((parsed.values.url ?? parsed.positionals[1]) === undefined
+            ? {}
+            : { url: parsed.values.url ?? parsed.positionals[1] }),
+          ...(parsed.values.company === undefined
+            ? {}
+            : { companyId: parsed.values.company }),
+          asJson: parsed.values.json,
+          verbose: parsed.values.verbose,
+          signal,
+        },
+        output,
+      );
 
     if (isDatabaseCommand(command)) {
       return runDatabaseCommand(command, output);
@@ -165,6 +193,20 @@ export async function runCli(
     output.writeStderr(`${message}\n`);
     return 2;
   }
+}
+
+function isSourceIntelligenceCommand(
+  command: string,
+): command is SourceIntelligenceCommand {
+  return [
+    'discover-company',
+    'discover-all',
+    'show-providers',
+    'show-company',
+    'show-discovery',
+    'health',
+    'coverage',
+  ].includes(command);
 }
 
 function isDatabaseCommand(command: string): command is DatabaseCommand {

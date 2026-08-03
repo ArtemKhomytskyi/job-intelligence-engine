@@ -20,11 +20,20 @@ export {
 } from './persistence/repositories.js';
 export { AbortableSleeper } from './http/abortable-sleeper.js';
 export { NodeFetchHttpClient } from './http/node-fetch-http-client.js';
+export { ConditionalCachingHttpClient } from './http/conditional-caching-http-client.js';
+export { PrismaCompanyRegistryStore } from './persistence/company-registry-store.js';
 export { RateLimitedHttpClient } from './http/rate-limited-http-client.js';
 export { RetryingHttpClient } from './http/retrying-http-client.js';
 export { SystemClock } from './http/system-clock.js';
 export { GreenhouseCollector } from './collectors/greenhouse-collector.js';
 export { LeverCollector } from './collectors/lever-collector.js';
+export {
+  PublicJsonAtsCollector,
+  createAshbyCollector,
+  createRecruiteeCollector,
+  createSmartRecruitersCollector,
+} from './collectors/public-json-ats-collector.js';
+export { CareerPageAtsCollector } from './collectors/career-page-ats-collector.js';
 export { StreamLogger } from './logging/stream-logger.js';
 export { PublicUrlSafetyValidator } from './http/public-url-safety-validator.js';
 export type {
@@ -55,6 +64,7 @@ export { APP_CSS, APP_JS } from './web/assets.js';
 export {
   escapeHtml,
   renderErrorPage,
+  renderCollectionHealthPage,
   renderPipelineFailurePage,
   renderRecommendationDetails,
   renderRecommendationReport,

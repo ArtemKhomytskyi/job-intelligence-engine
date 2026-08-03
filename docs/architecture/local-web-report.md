@@ -26,6 +26,7 @@ and immutable status history. Scores are never recalculated by the report.
 - `GET /recommendations/:id` renders complete details and may auto-mark VIEWED.
 - `POST /recommendations/:id/status` explicitly sets VIEWED, APPLIED, or SKIPPED.
 - `GET /runs/latest` renders latest collection, processing, and batch records.
+- `GET /collection-health` renders persisted discovery confidence, provider coverage, latest job counts, and safe failure codes.
   Candidate Matching V2 also shows bounded per-job recommendation diagnostics:
   selected, below threshold, no valid track, or selector excluded; Candidate
   Fit, Opportunity Quality, final score, threshold, best track, and exact reason.

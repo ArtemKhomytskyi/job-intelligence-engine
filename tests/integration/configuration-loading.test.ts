@@ -37,6 +37,7 @@ describe('configuration loading', () => {
       candidateDisplayName: 'Example Candidate',
       enabledTrackCount: 5,
       enabledSourceCount: 1,
+      enabledCompanyCount: 0,
       dailyRecommendationLimit: 20,
     });
   });

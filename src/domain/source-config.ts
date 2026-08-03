@@ -31,6 +31,24 @@ export interface LeverSourceConfig extends SourceConfigBase {
   };
 }
 
+export type AdditionalAtsSourceType =
+  | 'ashby'
+  | 'smartrecruiters'
+  | 'workable'
+  | 'bamboohr'
+  | 'recruitee'
+  | 'teamtailor'
+  | 'personio'
+  | 'jobvite';
+
+export interface AdditionalAtsSourceConfig extends SourceConfigBase {
+  readonly type: AdditionalAtsSourceType;
+  readonly settings: {
+    readonly identifier: string;
+    readonly url?: string;
+  };
+}
+
 export interface GenericJsonLdSourceConfig extends SourceConfigBase {
   readonly type: 'generic-jsonld';
   readonly settings: {
@@ -59,6 +77,7 @@ export interface GenericWebSettings {
 export type SourceConfig =
   | GreenhouseSourceConfig
   | LeverSourceConfig
+  | AdditionalAtsSourceConfig
   | GenericJsonLdSourceConfig
   | GenericPageSourceConfig
   | GenericJobListSourceConfig;

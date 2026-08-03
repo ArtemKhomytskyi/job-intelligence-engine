@@ -67,6 +67,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await client.companyCrawlResult.deleteMany();
+  await client.companyRegistry.deleteMany();
+  await client.httpCollectionCache.deleteMany();
   await client.recommendation.deleteMany();
   await client.recommendationBatch.deleteMany();
   await client.scoreComponent.deleteMany();

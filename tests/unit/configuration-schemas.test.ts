@@ -97,6 +97,40 @@ describe('configuration schemas', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts company-first discovery and every additional ATS source', () => {
+    const types = [
+      'ashby',
+      'smartrecruiters',
+      'workable',
+      'bamboohr',
+      'recruitee',
+      'teamtailor',
+      'personio',
+      'jobvite',
+    ];
+    const result = sourcesSchema.parse({
+      companies: [
+        {
+          id: 'synthetic-company',
+          name: 'Synthetic Company',
+          careersUrl: 'https://jobs.ashbyhq.com/synthetic',
+        },
+      ],
+      sources: types.map((type) => ({
+        id: `synthetic-${type}`,
+        type,
+        enabled: false,
+        displayName: `Synthetic ${type}`,
+        company: 'Synthetic Company',
+        tags: [],
+        trackIds: [],
+        settings: { identifier: 'synthetic' },
+      })),
+    });
+    expect(result.companies).toHaveLength(1);
+    expect(result.sources).toHaveLength(8);
+  });
+
   it('validates generic source URL and resource bounds', () => {
     const generic = {
       id: 'generic-list',

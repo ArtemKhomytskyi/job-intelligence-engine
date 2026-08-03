@@ -71,6 +71,7 @@ export class CollectionOrchestrator {
       runId,
       request.sources,
       request.concurrency,
+      request.perProviderConcurrency ?? Math.min(2, request.concurrency),
       request.signal,
     );
     const completed = this.dependencies.clock.now();
@@ -120,12 +121,23 @@ export class CollectionOrchestrator {
     runId: string,
     sources: readonly CollectableSource[],
     concurrency: number,
+    perProviderConcurrency: number,
     signal: AbortSignal,
   ): Promise<readonly SourceCollectionSummary[]> {
+    if (
+      !Number.isInteger(perProviderConcurrency) ||
+      perProviderConcurrency < 1 ||
+      perProviderConcurrency > concurrency
+    )
+      throw new CollectionError(
+        'SOURCE_CONFIGURATION_INVALID',
+        'Per-provider concurrency must be an integer between 1 and total concurrency.',
+      );
     const summaries = sources.map(
       (): SourceCollectionSummary | undefined => undefined,
     );
     let nextIndex = 0;
+    const limiter = new ProviderConcurrencyLimiter(perProviderConcurrency);
     const worker = async (): Promise<void> => {
       while (!signal.aborted) {
         const index = nextIndex;
@@ -133,7 +145,12 @@ export class CollectionOrchestrator {
         nextIndex += 1;
         const source = sources[index];
         if (source === undefined) return;
-        summaries[index] = await this.collectSource(runId, source, signal);
+        const release = await limiter.acquire(source.type);
+        try {
+          summaries[index] = await this.collectSource(runId, source, signal);
+        } finally {
+          release();
+        }
       }
     };
     const workerCount = Math.min(concurrency, sources.length);
@@ -292,19 +309,32 @@ export class CollectionOrchestrator {
   }
 }
 
+class ProviderConcurrencyLimiter {
+  private readonly active = new Map<string, number>();
+  private readonly waiting = new Map<string, Array<() => void>>();
+
+  public constructor(private readonly maximum: number) {}
+
+  public async acquire(key: string): Promise<() => void> {
+    if ((this.active.get(key) ?? 0) >= this.maximum)
+      await new Promise<void>((resolve) => {
+        const queue = this.waiting.get(key) ?? [];
+        queue.push(resolve);
+        this.waiting.set(key, queue);
+      });
+    this.active.set(key, (this.active.get(key) ?? 0) + 1);
+    return () => this.release(key);
+  }
+
+  private release(key: string): void {
+    this.active.set(key, Math.max(0, (this.active.get(key) ?? 1) - 1));
+    const next = this.waiting.get(key)?.shift();
+    if (next !== undefined) next();
+  }
+}
+
 function toSourceWrite(source: CollectableSource): JobSourceWrite {
-  const settings: JsonValue =
-    source.type === 'greenhouse'
-      ? { boardToken: source.boardToken }
-      : source.type === 'lever'
-        ? { companySlug: source.companySlug }
-        : {
-            url: source.url,
-            browserTimeoutMs: source.browserTimeoutMs,
-            maxDiscoveredLinks: source.maxDiscoveredLinks,
-            maxTraversalDepth: source.maxTraversalDepth,
-            allowBrowserFallback: source.allowBrowserFallback,
-          };
+  const settings: JsonValue = sourceSettings(source);
   return {
     configSourceId: source.id,
     type: source.type,
@@ -312,6 +342,36 @@ function toSourceWrite(source: CollectableSource): JobSourceWrite {
     enabled: source.enabled,
     settings,
   };
+}
+
+function sourceSettings(source: CollectableSource): JsonValue {
+  switch (source.type) {
+    case 'greenhouse':
+      return { boardToken: source.boardToken };
+    case 'lever':
+      return { companySlug: source.companySlug };
+    case 'generic-page':
+    case 'generic-job-list':
+      return {
+        url: source.url,
+        browserTimeoutMs: source.browserTimeoutMs,
+        maxDiscoveredLinks: source.maxDiscoveredLinks,
+        maxTraversalDepth: source.maxTraversalDepth,
+        allowBrowserFallback: source.allowBrowserFallback,
+      };
+    case 'ashby':
+    case 'smartrecruiters':
+    case 'workable':
+    case 'bamboohr':
+    case 'recruitee':
+    case 'teamtailor':
+    case 'personio':
+    case 'jobvite':
+      return {
+        identifier: source.identifier,
+        ...(source.url === undefined ? {} : { url: source.url }),
+      };
+  }
 }
 
 function mapSourceStatus(

@@ -1,5 +1,6 @@
 import type {
   LatestPipelineState,
+  CrawlHealthSummary,
   PipelineStage,
   RecommendationDetails,
   RecommendationListItem,
@@ -33,6 +34,21 @@ export function renderRecommendationReport(
     ${renderFirstRunState(sourceReadiness)}
     ${renderPipelineState(report.latestState)}
     ${batch === undefined ? renderNoBatch() : `${renderBatchMetadata(report)}${renderFilters(report)}${renderItems(report.items)}`}`,
+  );
+}
+
+export function renderCollectionHealthPage(health: CrawlHealthSummary): string {
+  const rows = health.companies
+    .map(
+      (company) =>
+        `<tr><td><a href="/collection-health?company=${encodeURIComponent(company.companyId)}">${escapeHtml(company.name)}</a></td><td>${escapeHtml(company.provider ?? 'UNKNOWN_PROVIDER')}</td><td>${company.discoveryConfidence}%</td><td>${company.jobCount}</td><td>${escapeHtml(company.lastFailureCode ?? 'Healthy')}</td></tr>`,
+    )
+    .join('');
+  return layout(
+    'Collection health',
+    `<div class="page-heading"><div><p class="eyebrow">Persisted collector health</p><h1>Collection health</h1></div></div>
+    <div class="metadata-grid">${metric('Companies', String(health.companyCount))}${metric('Discovered', String(health.discoveredCompanyCount))}${metric('Unknown providers', String(health.unknownProviderCount))}${metric('Latest jobs', String(health.totalJobs))}</div>
+    <section class="panel"><table><thead><tr><th>Company</th><th>Provider</th><th>Confidence</th><th>Jobs</th><th>Health</th></tr></thead><tbody>${rows}</tbody></table></section>`,
   );
 }
 
@@ -389,7 +405,7 @@ function renderSourceBlockers(sourceReadiness: SourceReadinessReport): string {
 }
 
 function layout(title: string, content: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · JIE</title><link rel="stylesheet" href="/assets/app.css"><script src="/assets/app.js" defer></script></head><body><header class="site-header"><div class="shell header-inner"><a class="brand" href="/recommendations">Job Intelligence Engine<small>Local report</small></a><nav aria-label="Primary"><a href="/recommendations">Recommendations</a><a href="/runs/latest">Pipeline</a></nav></div></header><main class="shell">${content}</main><footer class="shell">Local-only report · PostgreSQL is authoritative · JIE never submits applications</footer></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · JIE</title><link rel="stylesheet" href="/assets/app.css"><script src="/assets/app.js" defer></script></head><body><header class="site-header"><div class="shell header-inner"><a class="brand" href="/recommendations">Job Intelligence Engine<small>Local report</small></a><nav aria-label="Primary"><a href="/recommendations">Recommendations</a><a href="/runs/latest">Pipeline</a><a href="/collection-health">Collection health</a></nav></div></header><main class="shell">${content}</main><footer class="shell">Local-only report · PostgreSQL is authoritative · JIE never submits applications</footer></body></html>`;
 }
 
 function metric(label: string, value: string): string {

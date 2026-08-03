@@ -13,6 +13,7 @@ describe('CLI output', () => {
     candidateDisplayName: 'Example Candidate',
     enabledTrackCount: 5,
     enabledSourceCount: 3,
+    enabledCompanyCount: 0,
     dailyRecommendationLimit: 20,
   };
 
@@ -23,6 +24,7 @@ describe('CLI output', () => {
         'Candidate: Example Candidate',
         'Enabled tracks: 5',
         'Enabled sources: 3',
+        'Enabled companies: 0',
         'Daily recommendation limit: 20',
       ].join('\n'),
     );
@@ -65,7 +67,7 @@ describe('CLI output', () => {
     ).toContain('[CONFIG_FILE_NOT_FOUND] profile');
     expect(formatHelp()).toContain('validate-config');
     expect(formatHelp()).toContain('process');
-    expect(formatHelp()).toContain('Greenhouse, Lever, and generic sources');
+    expect(formatHelp()).toContain('enabled companies and supported sources');
   });
 
   it('formats processing summaries as text and JSON', () => {

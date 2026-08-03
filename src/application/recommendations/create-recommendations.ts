@@ -215,7 +215,7 @@ function relevantTracks(
 
 function sourceContext(
   record: RecommendationCandidateRecord,
-  sources: readonly import('../../domain/index.js').SourceConfig[],
+  sources: readonly import('./models.js').RecommendationSourceContext[],
 ) {
   const configured = sources.filter((source) =>
     record.sourceIds.includes(source.id),

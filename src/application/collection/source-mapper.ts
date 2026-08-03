@@ -62,6 +62,24 @@ export function toCollectableSources(
               companySlug: source.settings.companySlug,
             },
           ];
+        case 'ashby':
+        case 'smartrecruiters':
+        case 'workable':
+        case 'bamboohr':
+        case 'recruitee':
+        case 'teamtailor':
+        case 'personio':
+        case 'jobvite':
+          return [
+            {
+              ...common,
+              type: source.type,
+              identifier: source.settings.identifier,
+              ...(source.settings.url === undefined
+                ? {}
+                : { url: source.settings.url }),
+            },
+          ];
         case 'generic-jsonld':
           return [];
         case 'generic-page':

@@ -1,8 +1,14 @@
 # Collection architecture
 
-Collection is an application use case with infrastructure adapters. `JobCollector`, `HttpClient`, generic extraction/browser ports, `Logger`, clock, sleeper, and persistence contracts are owned by the application layer. Infrastructure supplies Greenhouse and Lever collectors, the Fetch/Cheerio/Playwright adapters, structured stream logging, and the existing Prisma-backed persistence composition.
+Collection is an application use case with infrastructure adapters. `JobCollector`, `HttpClient`, generic extraction/browser ports, `Logger`, clock, sleeper, company-registry, and persistence contracts are owned by the application layer. Infrastructure supplies ATS collectors, discovery, Fetch/Cheerio/Playwright adapters, structured stream logging, conditional HTTP caching, and Prisma-backed persistence composition.
 
-The CLI loads strict YAML, selects enabled supported sources, and starts at most three sources concurrently by default (configurable from 1 through 8). Jobs within a source are persisted sequentially. One source, malformed item, or job persistence failure does not stop unrelated work. Run and per-source summaries preserve created, updated, unchanged, linked, invalid, and persistence-failure counts.
+The CLI loads strict YAML, resolves enabled explicit sources plus enabled companies, and starts at most three sources concurrently by default (configurable from 1 through 8). Same-provider work is capped at two sources by default and HTTP rate limiting is keyed by hostname. Results retain configured order even when requests complete out of order. Jobs within a source are persisted sequentially. One source, malformed item, or job persistence failure does not stop unrelated work. Run and per-source summaries preserve created, updated, unchanged, linked, invalid, and persistence-failure counts.
+
+## Discovery and incremental retrieval
+
+Discovery applies explicit overrides, redirect/final URL patterns, careers URL patterns, and bounded HTML fingerprints in descending deterministic confidence. Ties and absent evidence return `UNKNOWN_PROVIDER`; diagnostics contain only safe host/path evidence. Company names alone are never converted into guessed URLs. The registry stores the current discovery result and immutable crawl outcomes.
+
+The shared HTTP decorator persists response bodies with ETag and Last-Modified validators. Later requests send `If-None-Match` and `If-Modified-Since`; a 304 reuses the bounded cached body. Existing source IDs, canonical URLs, fingerprints, and revisions continue to decide job-level create/update/unchanged outcomes.
 
 ## HTTP policy
 
@@ -25,7 +31,7 @@ values are logged.
 
 ## Collector and normalization scope
 
-Greenhouse uses its public board API with `content=true`; Lever uses its public postings API in JSON mode. Top-level responses are schema validated, while malformed individual jobs are counted and isolated. External IDs are deduplicated per response. Normalization trims and Unicode-normalizes strings, decodes entity-encoded ATS markup before removing executable content and tags, and preserves headings and list bullets in conservative plain text. It accepts HTTPS URLs, maps only explicit employment/workplace values, and retains unknown location text as metadata. It does not infer skills, seniority, salary, geography, or suitability.
+Greenhouse and Lever use their public JSON APIs. Ashby, SmartRecruiters, and Recruitee use shared schema-validated public JSON collection. Workable, BambooHR, Teamtailor, Personio, and Jobvite reuse bounded generic list/detail extraction over their public careers pages because no credential-free JSON contract is assumed. Top-level responses are schema validated, malformed jobs are isolated, and external IDs are deduplicated per response. Workday remains unsupported.
 
 Generic sources follow the static-first bounded policy in [generic-web-extraction.md](generic-web-extraction.md). They share the same downstream normalization and persistence behavior; extraction confidence is provenance, not job ranking.
 

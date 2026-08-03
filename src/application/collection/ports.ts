@@ -42,6 +42,8 @@ export interface HttpJsonResponse<T> {
   readonly attempts: number;
   readonly finalUrl?: string;
   readonly redirectCount?: number;
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly notModified?: boolean;
 }
 
 export interface HttpTextResponse {
@@ -50,6 +52,8 @@ export interface HttpTextResponse {
   readonly attempts: number;
   readonly finalUrl: string;
   readonly redirectCount: number;
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly notModified?: boolean;
 }
 
 export interface HttpClient {

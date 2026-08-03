@@ -1,5 +1,6 @@
 import type {
   CandidateProfile,
+  CompanyConfig,
   ScoringConfig,
   SearchConfiguration,
   SourceConfig,
@@ -25,7 +26,13 @@ export type DecodedConfigurationDocument =
   | { readonly section: 'profile'; readonly value: CandidateProfile }
   | { readonly section: 'search'; readonly value: SearchConfiguration }
   | { readonly section: 'scoring'; readonly value: ScoringConfig }
-  | { readonly section: 'sources'; readonly value: readonly SourceConfig[] };
+  | {
+      readonly section: 'sources';
+      readonly value: {
+        readonly sources: readonly SourceConfig[];
+        readonly companies: readonly CompanyConfig[];
+      };
+    };
 
 export interface ConfigurationDecoder {
   decode(

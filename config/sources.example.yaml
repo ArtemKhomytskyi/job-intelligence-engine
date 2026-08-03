@@ -53,3 +53,13 @@ sources:
     settings:
       url: https://replace-with-real-job-url.example/job
       allowBrowserFallback: false
+
+companies:
+  - id: my-company
+    name: Replace with company name
+    enabled: false
+    careersUrl: https://careers.example.com/jobs
+    tags: []
+    trackIds:
+      - data-science
+    trackPolicy: preferred

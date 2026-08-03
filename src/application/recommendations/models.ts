@@ -82,6 +82,13 @@ export interface CreateRecommendationsInput {
   readonly candidate: import('../../domain/index.js').CandidateProfile;
   readonly search: import('../../domain/index.js').SearchConfiguration;
   readonly scoring: import('../../domain/index.js').ScoringConfig;
-  readonly sources: readonly import('../../domain/index.js').SourceConfig[];
+  readonly sources: readonly RecommendationSourceContext[];
   readonly signal: AbortSignal;
+}
+
+export interface RecommendationSourceContext {
+  readonly id: string;
+  readonly tags: readonly string[];
+  readonly trackIds: readonly string[];
+  readonly trackPolicy?: import('../../domain/index.js').SourceTrackPolicy;
 }

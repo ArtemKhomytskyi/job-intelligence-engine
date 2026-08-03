@@ -10,6 +10,7 @@ import {
 } from '../../application/index.js';
 import {
   mapProfile,
+  mapCompanies,
   mapScoring,
   mapSearch,
   mapSources,
@@ -42,7 +43,10 @@ export class ZodYamlConfigurationDecoder implements ConfigurationDecoder {
       }
       case 'sources': {
         const value = parseSchema(sourcesSchema, input, section, file.path);
-        return { section, value: mapSources(value) };
+        return {
+          section,
+          value: { sources: mapSources(value), companies: mapCompanies(value) },
+        };
       }
     }
   }

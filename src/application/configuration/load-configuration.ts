@@ -1,5 +1,6 @@
 import type {
   CandidateProfile,
+  CompanyConfig,
   ScoringConfig,
   SearchConfiguration,
   SourceConfig,
@@ -39,6 +40,7 @@ export async function loadConfiguration(
   let search: SearchConfiguration | undefined;
   let scoring: ScoringConfig | undefined;
   let sources: readonly SourceConfig[] | undefined;
+  let companies: readonly CompanyConfig[] | undefined;
 
   for (const section of CONFIGURATION_SECTIONS) {
     try {
@@ -60,7 +62,8 @@ export async function loadConfiguration(
           scoring = document.value;
           break;
         case 'sources':
-          sources = document.value;
+          sources = document.value.sources;
+          companies = document.value.companies;
           break;
       }
     } catch (error: unknown) {
@@ -84,7 +87,8 @@ export async function loadConfiguration(
     candidate === undefined ||
     search === undefined ||
     scoring === undefined ||
-    sources === undefined
+    sources === undefined ||
+    companies === undefined
   ) {
     throw new ConfigurationError([
       {
@@ -96,7 +100,13 @@ export async function loadConfiguration(
     ]);
   }
 
-  const bundle: ConfigurationBundle = { candidate, search, scoring, sources };
+  const bundle: ConfigurationBundle = {
+    candidate,
+    search,
+    scoring,
+    sources,
+    companies,
+  };
   const warnings = validateConfiguration(bundle, {
     mode: options.validationMode ?? (useExamples ? 'examples' : 'runtime'),
   });

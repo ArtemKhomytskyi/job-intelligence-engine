@@ -19,7 +19,7 @@ Migration `20260729223000_job_processing_decisions` adds current normalized quer
 
 Migration `20260730150000_recommendation_batches` adds immutable `RecommendationBatch` identity and provenance, recommendation-to-batch rank uniqueness, score opportunity values, deterministic score keys, and processing-decision/revision references. The unique input hash protects concurrent identical runs. Batch creation, component scores, and ordered recommendations are written in one transaction, so a failed score or recommendation write leaves no partial batch. Existing score and recommendation rows remain compatible through nullable references and the retained legacy batch label.
 
-Chunk 7 adds no migration. Its report queries existing collection runs,
+Chunk 10 adds `CompanyRegistry`, immutable `CompanyCrawlResult`, and bounded `HttpCollectionCache` records. The registry is current-state authoritative; crawl rows preserve historical health, and the HTTP cache stores only public response validators and bounded bodies for conditional retrieval. Its report also queries existing collection runs,
 processing runs, recommendation batches/scores/components, jobs, source
 references, and status history. List retrieval is bounded and excludes
 descriptions; details use one relation-inclusive query. Status changes reuse the

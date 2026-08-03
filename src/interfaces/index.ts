@@ -9,6 +9,7 @@ export { formatRecommendationBatch } from './cli/recommend-command.js';
 export { formatFullPipelineResult } from './cli/run-command.js';
 export { validateServerOptions } from './cli/serve-command.js';
 export { formatSourceReadiness } from './cli/sources-check-command.js';
+export { runSourceIntelligence } from './cli/source-intelligence-command.js';
 export {
   createLocalReportHandler,
   mapWebError,

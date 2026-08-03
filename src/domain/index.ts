@@ -1,4 +1,6 @@
 export * from './candidate-profile.js';
+export * from './ats-discovery.js';
+export * from './company-source.js';
 export * from './categories.js';
 export * from './job-posting.js';
 export * from './job-processing.js';

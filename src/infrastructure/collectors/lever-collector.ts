@@ -61,7 +61,7 @@ export class LeverCollector implements JobCollector {
         url,
         timeoutMs: source.requestTimeoutMs,
         signal: context.signal,
-        rateLimitKey: source.id,
+        rateLimitKey: new URL(url).hostname,
         minimumIntervalMs: 1_000 / source.requestsPerSecond,
       },
       new ZodSourceDecoder(envelopeSchema),

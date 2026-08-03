@@ -4,6 +4,7 @@ import {
   createSalaryRange,
   DomainInvariantError,
   type CandidateProfile,
+  type CompanyConfig,
   type ScoringConfig,
   type SearchConfiguration,
   type SourceConfig,
@@ -309,6 +310,24 @@ export function mapSources(document: SourcesDocument): readonly SourceConfig[] {
               : { jobsUrl: source.settings.jobsUrl }),
           },
         };
+      case 'ashby':
+      case 'smartrecruiters':
+      case 'workable':
+      case 'bamboohr':
+      case 'recruitee':
+      case 'teamtailor':
+      case 'personio':
+      case 'jobvite':
+        return {
+          ...common,
+          type: source.type,
+          settings: {
+            identifier: source.settings.identifier,
+            ...(source.settings.url === undefined
+              ? {}
+              : { url: source.settings.url }),
+          },
+        };
       case 'generic-jsonld':
         return {
           ...common,
@@ -338,6 +357,38 @@ export function mapSources(document: SourcesDocument): readonly SourceConfig[] {
         };
     }
   });
+}
+
+export function mapCompanies(
+  document: SourcesDocument,
+): readonly CompanyConfig[] {
+  return document.companies.map((company) => ({
+    id: company.id,
+    name: company.name,
+    enabled: company.enabled,
+    ...(company.careersUrl === undefined
+      ? {}
+      : { careersUrl: company.careersUrl }),
+    ...(company.websiteUrl === undefined
+      ? {}
+      : { websiteUrl: company.websiteUrl }),
+    tags: company.tags,
+    trackIds: company.trackIds,
+    trackPolicy: company.trackPolicy,
+    ...(company.sourceOverride === undefined
+      ? {}
+      : {
+          sourceOverride: {
+            type: company.sourceOverride.type,
+            ...(company.sourceOverride.identifier === undefined
+              ? {}
+              : { identifier: company.sourceOverride.identifier }),
+            ...(company.sourceOverride.url === undefined
+              ? {}
+              : { url: company.sourceOverride.url }),
+          },
+        }),
+  }));
 }
 
 function mapInvariantError(

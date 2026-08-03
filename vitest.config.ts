@@ -13,6 +13,7 @@ export default defineConfig({
         'src/interfaces/cli/collect-command.ts',
         'src/interfaces/cli/process-command.ts',
         'src/interfaces/cli/main.ts',
+        'src/interfaces/composition/**',
       ],
       include: ['src/**/*.ts'],
       provider: 'v8',

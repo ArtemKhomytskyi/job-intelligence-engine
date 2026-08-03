@@ -9,6 +9,7 @@ import {
   USER_APPLICATION_STATUSES,
   parseRecommendationReportQuery,
   type DatabaseHealthPort,
+  type CrawlHealthSummary,
   type FullPipelineRunner,
   type Logger,
   type PipelineStage,
@@ -23,6 +24,7 @@ import {
   APP_CSS,
   APP_JS,
   renderErrorPage,
+  renderCollectionHealthPage,
   renderPipelineFailurePage,
   renderRecommendationDetails,
   renderRecommendationReport,
@@ -63,6 +65,7 @@ export interface LocalReportRuntime {
     ): Promise<UpdateApplicationStatusResult>;
   };
   readonly health: DatabaseHealthPort;
+  getCollectionHealth?(): Promise<CrawlHealthSummary>;
 }
 
 export function createLocalReportHandler(
@@ -120,6 +123,32 @@ async function handleRequest(
     } catch {
       sendJson(response, 503, { status: 'unavailable' });
     }
+    return;
+  }
+  if (method === 'GET' && url.pathname === '/collection-health') {
+    if (dependencies.runtime.getCollectionHealth === undefined) {
+      sendHtml(
+        response,
+        200,
+        renderCollectionHealthPage({
+          companyCount: 0,
+          discoveredCompanyCount: 0,
+          unknownProviderCount: 0,
+          healthyCompanyCount: 0,
+          failedCompanyCount: 0,
+          totalJobs: 0,
+          companies: [],
+        }),
+      );
+      return;
+    }
+    sendHtml(
+      response,
+      200,
+      renderCollectionHealthPage(
+        await dependencies.runtime.getCollectionHealth(),
+      ),
+    );
     return;
   }
   if (method === 'GET' && url.pathname === '/recommendations') {

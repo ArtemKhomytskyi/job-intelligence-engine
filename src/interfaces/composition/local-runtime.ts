@@ -1,10 +1,8 @@
 import {
   CollectionOrchestrator,
-  CollectorRegistry,
+  CompanyDiscoveryService,
   CreateRecommendations,
   ExistingCollectionPersistence,
-  GenericExtractionEngine,
-  GenericWebCollector,
   GetRecommendationDetails,
   GetRecommendationReport,
   ProcessCollectedJobs,
@@ -14,8 +12,11 @@ import {
   TransactionalRecommendationBatchRepository,
   UpdateJobApplicationStatus,
   loadConfiguration,
+  resolveCompanySources,
   toCollectableSources,
   type Clock,
+  type CompanyHealthRecord,
+  type CrawlHealthSummary,
   type DatabaseHealthPort,
   type FullPipelineRunner,
   type Logger,
@@ -27,18 +28,17 @@ import {
 } from '../../application/index.js';
 import {
   inspectSourceReadiness,
+  type ProviderDiscoveryResult,
   type SourceReadinessReport,
 } from '../../domain/index.js';
 import {
   AbortableSleeper,
-  CheerioDocumentExtractor,
+  ConditionalCachingHttpClient,
   FileSystemConfigReader,
-  GreenhouseCollector,
-  HttpPageAcquirer,
-  LeverCollector,
   NodeFetchHttpClient,
   PlaywrightBrowserRenderer,
   PrismaDatabaseHealth,
+  PrismaCompanyRegistryStore,
   PrismaRecommendationReportRepository,
   PrismaTransactionManager,
   PublicUrlSafetyValidator,
@@ -49,6 +49,7 @@ import {
   ZodYamlConfigurationDecoder,
   createPrismaClient,
 } from '../../infrastructure/index.js';
+import { createCollectorRegistry } from './collector-composition.js';
 
 export interface LocalRuntimeOptions {
   readonly configDirectory: string;
@@ -71,6 +72,17 @@ export interface LocalRuntime {
     ): Promise<UpdateApplicationStatusResult>;
   };
   readonly health: DatabaseHealthPort;
+  discoverCompany?(
+    url: string,
+    signal?: AbortSignal,
+  ): Promise<ProviderDiscoveryResult>;
+  discoverAll?(
+    signal?: AbortSignal,
+  ): Promise<readonly ProviderDiscoveryResult[]>;
+  getCompanyHealth?(
+    companyId: string,
+  ): Promise<CompanyHealthRecord | undefined>;
+  getCollectionHealth?(): Promise<CrawlHealthSummary>;
   validateConfiguration(): Promise<void>;
   inspectSourceReadiness(): Promise<SourceReadinessReport>;
   close(): Promise<void>;
@@ -83,42 +95,86 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const sleeper = new AbortableSleeper();
   const urlSafety = new PublicUrlSafetyValidator();
   const baseHttp = new NodeFetchHttpClient(urlSafety);
-  const http = new RetryingHttpClient(
-    new RateLimitedHttpClient(baseHttp, clock, sleeper),
-    sleeper,
-    options.logger,
+  const http = new ConditionalCachingHttpClient(
+    new RetryingHttpClient(
+      new RateLimitedHttpClient(baseHttp, clock, sleeper),
+      sleeper,
+      options.logger,
+    ),
+    client,
   );
+  const companyRegistry = new PrismaCompanyRegistryStore(client);
+  const discovery = new CompanyDiscoveryService(http, companyRegistry);
   const browser = new PlaywrightBrowserRenderer(urlSafety, clock);
-  const extractionEngine = new GenericExtractionEngine(
-    new HttpPageAcquirer(http),
-    new CheerioDocumentExtractor(),
+  const registry = createCollectorRegistry({
+    http,
+    clock,
     browser,
-    options.logger,
-  );
-  const registry = new CollectorRegistry([
-    new GreenhouseCollector(http, clock),
-    new LeverCollector(http, clock),
-    new GenericWebCollector('generic-page', extractionEngine, clock),
-    new GenericWebCollector('generic-job-list', extractionEngine, clock),
-  ]);
+    logger: options.logger,
+  });
   const pipeline = new SingleActivePipelineRunner(
     new RunFullPipeline({
       configuration: {
         load: () => loadLocalConfiguration(options.configDirectory),
       },
       collection: {
-        execute: (input) =>
-          new CollectionOrchestrator({
+        execute: async (input) => {
+          const explicitSources = input.configuration.sources.some(
+            (source) => source.enabled,
+          )
+            ? toCollectableSources(input.configuration.sources)
+            : [];
+          const discovered = await resolveCompanySources(
+            discovery,
+            input.configuration.companies ?? [],
+            {
+              collectedAt: clock.now().toISOString(),
+              signal: input.signal,
+            },
+          );
+          const discoveredAt = clock.now().toISOString();
+          await Promise.all(
+            discovered.discoveries.map((result) =>
+              companyRegistry.recordDiscovery(result, discoveredAt),
+            ),
+          );
+          for (const result of discovered.discoveries)
+            if (result.status === 'UNKNOWN_PROVIDER')
+              options.logger.warn('Company provider discovery failed.', {
+                companyId: result.companyId,
+                errorCode: 'UNKNOWN_PROVIDER',
+              });
+          const summary = await new CollectionOrchestrator({
             registry,
             persistence: new ExistingCollectionPersistence(transactions),
             clock,
             logger: options.logger,
           }).collect({
-            sources: toCollectableSources(input.configuration.sources),
+            sources: [...explicitSources, ...discovered.sources],
             concurrency: input.concurrency,
             signal: input.signal,
             initiatedBy: input.initiatedBy,
-          }),
+          });
+          await Promise.all(
+            discovered.discoveries.flatMap((result) => {
+              const source = summary.sourceSummaries.find(
+                (candidate) =>
+                  candidate.sourceId === `company-${result.companyId}`,
+              );
+              return source === undefined
+                ? []
+                : [
+                    companyRegistry.recordCrawl(
+                      result.companyId,
+                      summary,
+                      source,
+                      summary.completedAt,
+                    ),
+                  ];
+            }),
+          );
+          return summary;
+        },
       },
       processing: {
         execute: (input) =>
@@ -146,7 +202,15 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
             candidate: input.configuration.candidate,
             search: input.configuration.search,
             scoring: input.configuration.scoring,
-            sources: input.configuration.sources,
+            sources: [
+              ...input.configuration.sources,
+              ...(input.configuration.companies ?? []).map((company) => ({
+                id: `company-${company.id}`,
+                tags: company.tags,
+                trackIds: company.trackIds,
+                trackPolicy: company.trackPolicy,
+              })),
+            ],
             signal: input.signal,
           }),
       },
@@ -166,6 +230,52 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     getDetails: new GetRecommendationDetails(reportRepository, updateStatus),
     updateStatus,
     health: new PrismaDatabaseHealth(client),
+    async discoverCompany(
+      url: string,
+      signal = new AbortController().signal,
+    ): Promise<ProviderDiscoveryResult> {
+      const parsed = new URL(url);
+      const slug = parsed.hostname
+        .replace(/^www\./u, '')
+        .replace(/[^a-z0-9]+/giu, '-')
+        .replace(/^-|-$/gu, '')
+        .toLocaleLowerCase('en-US');
+      const result = await discovery.discover(
+        {
+          id: slug.length === 0 ? 'discovered-company' : slug,
+          name: parsed.hostname,
+          enabled: true,
+          careersUrl: parsed.toString(),
+          tags: [],
+          trackIds: [],
+          trackPolicy: 'preferred',
+        },
+        { collectedAt: clock.now().toISOString(), signal },
+      );
+      await companyRegistry.recordDiscovery(result, clock.now().toISOString());
+      return result;
+    },
+    async discoverAll(
+      signal = new AbortController().signal,
+    ): Promise<readonly ProviderDiscoveryResult[]> {
+      const configuration = await loadLocalConfiguration(
+        options.configDirectory,
+      );
+      const resolution = await resolveCompanySources(
+        discovery,
+        configuration.companies ?? [],
+        { collectedAt: clock.now().toISOString(), signal },
+      );
+      const discoveredAt = clock.now().toISOString();
+      await Promise.all(
+        resolution.discoveries.map((result) =>
+          companyRegistry.recordDiscovery(result, discoveredAt),
+        ),
+      );
+      return resolution.discoveries;
+    },
+    getCompanyHealth: (companyId) => companyRegistry.getCompany(companyId),
+    getCollectionHealth: () => companyRegistry.getHealth(),
     async validateConfiguration(): Promise<void> {
       await loadLocalConfiguration(options.configDirectory);
     },

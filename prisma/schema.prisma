@@ -248,9 +248,76 @@ model CollectionRun {
   createdAt       DateTime                    @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime                    @updatedAt @db.Timestamptz(3)
   sourceResults   CollectionRunSourceResult[]
+  companyCrawls   CompanyCrawlResult[]
 
   @@index([startedAt])
   @@index([status])
+}
+
+model CompanyRegistry {
+  id                    String               @id @default(uuid()) @db.Uuid
+  configCompanyId       String               @unique
+  name                  String
+  careersUrl            String?
+  provider              String?
+  discoveryStatus       String
+  discoveryConfidence   Int                  @default(0)
+  discoveryMethod       String?
+  collectorVersion      String?
+  lastDiscoveredAt      DateTime?            @db.Timestamptz(3)
+  lastSuccessfulCrawlAt DateTime?            @db.Timestamptz(3)
+  lastFailureAt         DateTime?            @db.Timestamptz(3)
+  lastFailureCode       String?
+  jobCount              Int                  @default(0)
+  etag                  String?
+  lastModified          String?
+  diagnostics           Json?
+  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
+  crawlResults          CompanyCrawlResult[]
+
+  @@index([provider])
+  @@index([discoveryStatus])
+}
+
+model CompanyCrawlResult {
+  id                  String          @id @default(uuid()) @db.Uuid
+  companyId           String          @db.Uuid
+  collectionRunId     String?         @db.Uuid
+  status              String
+  startedAt           DateTime        @db.Timestamptz(3)
+  completedAt         DateTime        @db.Timestamptz(3)
+  durationMs          Int
+  jobsDiscovered      Int             @default(0)
+  jobsCreated         Int             @default(0)
+  jobsUpdated         Int             @default(0)
+  jobsUnchanged       Int             @default(0)
+  jobsRemoved         Int             @default(0)
+  requestCount        Int             @default(0)
+  httpFailureCount    Int             @default(0)
+  parsingFailureCount Int             @default(0)
+  redirectCount       Int             @default(0)
+  errorCode           String?
+  diagnostics         Json?
+  createdAt           DateTime        @default(now()) @db.Timestamptz(3)
+  company             CompanyRegistry @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  collectionRun       CollectionRun?  @relation(fields: [collectionRunId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, startedAt])
+  @@index([collectionRunId])
+  @@index([status])
+}
+
+model HttpCollectionCache {
+  key          String   @id
+  responseBody String
+  etag         String?
+  lastModified String?
+  finalUrl     String
+  status       Int
+  fetchedAt    DateTime @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
 }
 
 model CollectionRunSourceResult {

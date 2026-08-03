@@ -219,7 +219,7 @@ function toHttpRequest(
     url,
     timeoutMs: source.requestTimeoutMs,
     signal,
-    rateLimitKey: source.id,
+    rateLimitKey: new URL(url).hostname,
     minimumIntervalMs: 1_000 / source.requestsPerSecond,
     maximumResponseBytes: MAX_STATIC_HTML_BYTES,
     maximumRedirects: 5,

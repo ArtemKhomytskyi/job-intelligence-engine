@@ -60,6 +60,18 @@ function inspectSource(source: SourceConfig): SourceReadiness {
     case 'generic-job-list':
       inspectUrl(source.settings.url, placeholderReasons);
       break;
+    case 'ashby':
+    case 'smartrecruiters':
+    case 'workable':
+    case 'bamboohr':
+    case 'recruitee':
+    case 'teamtailor':
+    case 'personio':
+    case 'jobvite':
+      if (isPlaceholderText(source.settings.identifier))
+        placeholderReasons.add('placeholder ATS identifier');
+      inspectOptionalUrl(source.settings.url, placeholderReasons);
+      break;
   }
 
   const readinessReasons = new Set(placeholderReasons);

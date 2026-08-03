@@ -143,6 +143,52 @@ describe('collection orchestrator', () => {
       }),
     ).resolves.toMatchObject({ status: 'FAILED', failedSourceCount: 1 });
   });
+
+  it('bounds same-provider work and preserves configured result order', async () => {
+    let active = 0;
+    let maximumActive = 0;
+    const collector: JobCollector = {
+      sourceType: 'greenhouse',
+      collect: async (candidate) => {
+        active += 1;
+        maximumActive = Math.max(maximumActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active -= 1;
+        return {
+          sourceId: candidate.id,
+          sourceType: 'greenhouse',
+          requestCount: 1,
+          rawJobCount: 0,
+          invalidJobCount: 0,
+          warnings: [],
+          candidates: [],
+          durationMs: 5,
+        };
+      },
+    };
+    const sources = ['first', 'second', 'third'].map((id) => ({
+      ...source,
+      id,
+    }));
+    const summary = await new CollectionOrchestrator({
+      registry: new CollectorRegistry([collector]),
+      persistence: fakePersistence(),
+      clock: clock(),
+      logger,
+    }).collect({
+      sources,
+      concurrency: 3,
+      perProviderConcurrency: 1,
+      signal: new AbortController().signal,
+      initiatedBy: 'test',
+    });
+    expect(maximumActive).toBe(1);
+    expect(summary.sourceSummaries.map((item) => item.sourceId)).toEqual([
+      'first',
+      'second',
+      'third',
+    ]);
+  });
 });
 
 function persistedJob() {

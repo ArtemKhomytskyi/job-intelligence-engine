@@ -46,6 +46,40 @@ describe('source readiness', () => {
     expect(report.hasRealEnabledSource).toBe(true);
   });
 
+  it('classifies additional ATS identifiers and optional URLs', () => {
+    const report = inspectSourceReadiness([
+      {
+        id: 'ashby-source',
+        type: 'ashby',
+        enabled: true,
+        displayName: 'Synthetic Ashby',
+        tags: [],
+        trackIds: [],
+        settings: { identifier: 'synthetic' },
+      },
+      {
+        id: 'workable-source',
+        type: 'workable',
+        enabled: true,
+        displayName: 'Synthetic Workable',
+        tags: [],
+        trackIds: [],
+        settings: {
+          identifier: 'replace-with-real-company',
+          url: 'https://apply.workable.com/example-company',
+        },
+      },
+    ]);
+    expect(report.sources[0]).toMatchObject({
+      classification: 'REAL',
+      configurationReady: true,
+    });
+    expect(report.sources[1]).toMatchObject({
+      classification: 'PLACEHOLDER',
+      configurationReady: false,
+    });
+  });
+
   it('reports disabled placeholders without making them runnable', () => {
     const report = inspectSourceReadiness([
       { ...lever('lever-template', 'example-labs'), enabled: false },

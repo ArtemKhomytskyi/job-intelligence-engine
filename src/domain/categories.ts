@@ -55,11 +55,33 @@ export type LanguageProficiency = (typeof LANGUAGE_PROFICIENCIES)[number];
 export const SOURCE_TYPES = [
   'greenhouse',
   'lever',
+  'ashby',
+  'smartrecruiters',
+  'workable',
+  'bamboohr',
+  'recruitee',
+  'teamtailor',
+  'personio',
+  'jobvite',
   'generic-jsonld',
   'generic-page',
   'generic-job-list',
 ] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
+
+export const ATS_PROVIDERS = [
+  'greenhouse',
+  'lever',
+  'ashby',
+  'smartrecruiters',
+  'workable',
+  'bamboohr',
+  'recruitee',
+  'teamtailor',
+  'personio',
+  'jobvite',
+] as const;
+export type AtsProvider = (typeof ATS_PROVIDERS)[number];
 
 export const CURRENCY_CODES = [
   'EUR',

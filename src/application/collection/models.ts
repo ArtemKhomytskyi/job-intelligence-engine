@@ -1,7 +1,11 @@
-import type { JsonValue, NormalizedJobPosting } from '../../domain/index.js';
+import type {
+  AtsProvider,
+  JsonValue,
+  NormalizedJobPosting,
+} from '../../domain/index.js';
 
 export type CollectorSourceType =
-  'greenhouse' | 'lever' | 'generic-page' | 'generic-job-list';
+  AtsProvider | 'generic-page' | 'generic-job-list';
 
 export interface CollectableSourceBase {
   readonly id: string;
@@ -23,6 +27,12 @@ export interface LeverCollectableSource extends CollectableSourceBase {
   readonly companySlug: string;
 }
 
+export interface AdditionalAtsCollectableSource extends CollectableSourceBase {
+  readonly type: Exclude<AtsProvider, 'greenhouse' | 'lever'>;
+  readonly identifier: string;
+  readonly url?: string;
+}
+
 export interface GenericWebCollectableSource extends CollectableSourceBase {
   readonly type: 'generic-page' | 'generic-job-list';
   readonly url: string;
@@ -36,6 +46,7 @@ export interface GenericWebCollectableSource extends CollectableSourceBase {
 export type CollectableSource =
   | GreenhouseCollectableSource
   | LeverCollectableSource
+  | AdditionalAtsCollectableSource
   | GenericWebCollectableSource;
 
 export interface CollectedJobCandidate {
@@ -130,6 +141,7 @@ export interface CollectionRunSummary {
 export interface CollectionRequest {
   readonly sources: readonly CollectableSource[];
   readonly concurrency: number;
+  readonly perProviderConcurrency?: number;
   readonly signal: AbortSignal;
   readonly initiatedBy: string;
 }

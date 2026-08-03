@@ -128,6 +128,9 @@ Public ATS sources may also set `company`, `requestTimeoutMs` (1000-60000), and 
 - `generic-page`: public HTTPS `url` plus optional browser timeout, link/depth limits, and a browser fallback flag that must remain false externally.
 - `generic-job-list`: the same settings, with a default traversal depth of one.
 - `generic-jsonld`: retained as a configuration-only legacy discriminator; use `generic-page` for collection.
+- Dedicated ATS types: `greenhouse`, `lever`, `ashby`, `smartrecruiters`, `workable`, `bamboohr`, `recruitee`, `teamtailor`, `personio`, and `jobvite`.
+
+Company-first entries use a stable lowercase `id`, display `name`, optional `careersUrl`/`websiteUrl`, tags and track policy. `sourceOverride` can supply a provider and identifier/URL when public evidence is unavailable. Empty `sources` is valid when at least one company is enabled. Explicit sources remain supported for compatibility and precise control.
 
 Generic browser timeouts must be 3000-90000 ms, discovered-link limits 1-200,
 and traversal depth 0-2. Defaults are 15000 ms, 50 links, browser fallback

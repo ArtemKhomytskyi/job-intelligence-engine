@@ -1,24 +1,22 @@
 import {
   CollectionError,
   CollectionOrchestrator,
-  CollectorRegistry,
+  CompanyDiscoveryService,
   ConfigurationError,
   ExistingCollectionPersistence,
-  GenericExtractionEngine,
-  GenericWebCollector,
   loadConfiguration,
+  resolveCompanySources,
   toCollectableSources,
   type CollectionRunSummary,
+  type CollectorSourceType,
 } from '../../application/index.js';
 import {
   AbortableSleeper,
+  ConditionalCachingHttpClient,
+  PrismaCompanyRegistryStore,
   createPrismaClient,
   FileSystemConfigReader,
-  GreenhouseCollector,
-  LeverCollector,
   NodeFetchHttpClient,
-  HttpPageAcquirer,
-  CheerioDocumentExtractor,
   PlaywrightBrowserRenderer,
   PublicUrlSafetyValidator,
   PrismaTransactionManager,
@@ -28,6 +26,7 @@ import {
   SystemClock,
   ZodYamlConfigurationDecoder,
 } from '../../infrastructure/index.js';
+import { createCollectorRegistry } from '../composition/collector-composition.js';
 import type { CommandOutput } from './validate-config-command.js';
 
 export interface CollectCommandOptions {
@@ -59,14 +58,11 @@ export async function runCollect(
       );
     if (
       options.sourceType !== undefined &&
-      options.sourceType !== 'greenhouse' &&
-      options.sourceType !== 'lever' &&
-      options.sourceType !== 'generic-page' &&
-      options.sourceType !== 'generic-job-list'
+      !isCollectorSourceType(options.sourceType)
     )
       throw new CollectionError(
         'SOURCE_CONFIGURATION_INVALID',
-        'Source type must be greenhouse, lever, generic-page, or generic-job-list.',
+        'Source type must be a supported ATS, generic-page, or generic-job-list.',
       );
     const bundle = await loadConfiguration(
       {
@@ -75,37 +71,51 @@ export async function runCollect(
       },
       { directory: options.configDirectory },
     );
-    const sources = toCollectableSources(bundle.sources, {
+    const explicitSources = toCollectableSources(bundle.sources, {
       ...(options.sourceIds.length === 0
         ? {}
         : { sourceIds: new Set(options.sourceIds) }),
-      ...(options.sourceType === undefined
+      ...(options.sourceType === undefined ||
+      !isCollectorSourceType(options.sourceType)
         ? {}
         : { sourceType: options.sourceType }),
     });
+    client = createPrismaClient();
     const clock = new SystemClock();
     const sleeper = new AbortableSleeper();
     const urlSafety = new PublicUrlSafetyValidator();
     const baseHttp = new NodeFetchHttpClient(urlSafety);
-    const http = new RetryingHttpClient(
-      new RateLimitedHttpClient(baseHttp, clock, sleeper),
-      sleeper,
-      logger,
+    const http = new ConditionalCachingHttpClient(
+      new RetryingHttpClient(
+        new RateLimitedHttpClient(baseHttp, clock, sleeper),
+        sleeper,
+        logger,
+      ),
+      client,
     );
     browser = new PlaywrightBrowserRenderer(urlSafety, clock);
-    const extractionEngine = new GenericExtractionEngine(
-      new HttpPageAcquirer(http),
-      new CheerioDocumentExtractor(),
-      browser,
-      logger,
+    const registry = createCollectorRegistry({ http, clock, browser, logger });
+    const companyRegistry = new PrismaCompanyRegistryStore(client);
+    const discovery = await resolveCompanySources(
+      new CompanyDiscoveryService(http, companyRegistry),
+      bundle.companies ?? [],
+      { collectedAt: clock.now().toISOString(), signal: options.signal },
     );
-    const registry = new CollectorRegistry([
-      new GreenhouseCollector(http, clock),
-      new LeverCollector(http, clock),
-      new GenericWebCollector('generic-page', extractionEngine, clock),
-      new GenericWebCollector('generic-job-list', extractionEngine, clock),
-    ]);
-    client = createPrismaClient();
+    const discoveredAt = clock.now().toISOString();
+    await Promise.all(
+      discovery.discoveries.map((result) =>
+        companyRegistry.recordDiscovery(result, discoveredAt),
+      ),
+    );
+    const companySources = discovery.sources.filter(
+      (source) =>
+        (options.sourceIds.length === 0 ||
+          options.sourceIds.includes(source.id) ||
+          options.sourceIds.includes(source.id.replace(/^company-/u, ''))) &&
+        (options.sourceType === undefined ||
+          source.type === options.sourceType),
+    );
+    const sources = [...explicitSources, ...companySources];
     const persistence = new ExistingCollectionPersistence(
       new PrismaTransactionManager(client),
     );
@@ -120,6 +130,23 @@ export async function runCollect(
       signal: options.signal,
       initiatedBy: 'cli',
     });
+    await Promise.all(
+      discovery.discoveries.flatMap((result) => {
+        const sourceSummary = summary.sourceSummaries.find(
+          (candidate) => candidate.sourceId === `company-${result.companyId}`,
+        );
+        return sourceSummary === undefined
+          ? []
+          : [
+              companyRegistry.recordCrawl(
+                result.companyId,
+                summary,
+                sourceSummary,
+                summary.completedAt,
+              ),
+            ];
+      }),
+    );
     output.writeStdout(`${formatCollectionSummary(summary, options.asJson)}\n`);
     return summary.status === 'FAILED' || summary.status === 'CANCELLED'
       ? 4
@@ -141,6 +168,23 @@ export async function runCollect(
     if (browser !== undefined) await browser.close();
     if (client !== undefined) await client.$disconnect();
   }
+}
+
+function isCollectorSourceType(value: string): value is CollectorSourceType {
+  return [
+    'greenhouse',
+    'lever',
+    'ashby',
+    'smartrecruiters',
+    'workable',
+    'bamboohr',
+    'recruitee',
+    'teamtailor',
+    'personio',
+    'jobvite',
+    'generic-page',
+    'generic-job-list',
+  ].some((type) => type === value);
 }
 
 export function formatCollectionSummary(

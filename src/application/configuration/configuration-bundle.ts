@@ -1,5 +1,6 @@
 import type {
   CandidateProfile,
+  CompanyConfig,
   ScoringConfig,
   SearchConfiguration,
   SourceConfig,
@@ -10,6 +11,7 @@ export interface ConfigurationBundle {
   readonly search: SearchConfiguration;
   readonly scoring: ScoringConfig;
   readonly sources: readonly SourceConfig[];
+  readonly companies?: readonly CompanyConfig[];
   readonly warnings?: readonly import('./errors.js').ConfigurationIssue[];
 }
 

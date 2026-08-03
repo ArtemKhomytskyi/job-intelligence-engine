@@ -1,4 +1,8 @@
-import type { SearchTrack, SourceConfig } from '../../domain/index.js';
+import type {
+  CompanyConfig,
+  SearchTrack,
+  SourceConfig,
+} from '../../domain/index.js';
 import {
   WEIGHTED_SCORING_COMPONENT_KEYS,
   inspectSourceReadiness,
@@ -147,9 +151,12 @@ function validateSemanticConsistency(
       message: `Hard-filter maximum seniority prevents the candidate target${bundle.candidate.allowSeniorityStretch === true ? ' and configured one-level stretch' : ''} above ${maximumTarget}. Align the two fields.`,
     });
   const enabledSources = bundle.sources.filter((source) => source.enabled);
-  if (enabledSources.length === 0) return;
+  const enabledCompanies = (bundle.companies ?? []).filter(
+    (company) => company.enabled,
+  );
+  if (enabledSources.length === 0 && enabledCompanies.length === 0) return;
   for (const track of bundle.search.tracks.filter((item) => item.enabled)) {
-    const available = enabledSources.some(
+    const available = [...enabledSources, ...enabledCompanies].some(
       (source) =>
         source.trackPolicy !== 'strict' ||
         source.trackIds.length === 0 ||
@@ -265,6 +272,7 @@ function validateSources(
   issues: ConfigurationIssue[],
 ): void {
   collectDuplicateIds(bundle.sources, 'sources', 'sources', issues);
+  collectDuplicateIds(bundle.companies ?? [], 'sources', 'companies', issues);
 
   const trackIds = new Set(bundle.search.tracks.map((track) => track.id));
   for (const [index, source] of bundle.sources.entries()) {
@@ -306,12 +314,41 @@ function validateSources(
     }
   }
 
-  if (mode === 'runtime' && !bundle.sources.some((source) => source.enabled)) {
+  for (const [index, company] of (bundle.companies ?? []).entries()) {
+    validateSafeId(company.id, 'sources', `companies[${index}].id`, issues);
+    for (const [trackIndex, trackId] of company.trackIds.entries())
+      if (!trackIds.has(trackId))
+        issues.push({
+          code: 'CONFIG_REFERENCE_INVALID',
+          section: 'sources',
+          fieldPath: `companies[${index}].trackIds[${trackIndex}]`,
+          message: `Company "${company.id}" references unknown track "${trackId}".`,
+        });
+    if (
+      mode === 'runtime' &&
+      company.enabled &&
+      company.careersUrl === undefined &&
+      company.websiteUrl === undefined &&
+      company.sourceOverride === undefined
+    )
+      issues.push({
+        code: 'CONFIG_REFERENCE_INVALID',
+        section: 'sources',
+        fieldPath: `companies[${index}]`,
+        message: `Company "${company.id}" requires careersUrl, websiteUrl, or sourceOverride for deterministic discovery.`,
+      });
+  }
+
+  if (
+    mode === 'runtime' &&
+    !bundle.sources.some((source) => source.enabled) &&
+    !(bundle.companies ?? []).some((company) => company.enabled)
+  ) {
     issues.push({
       code: 'CONFIG_REFERENCE_INVALID',
       section: 'sources',
       fieldPath: 'sources',
-      message: 'At least one source must be enabled.',
+      message: 'At least one source or company must be enabled.',
     });
   }
 
@@ -380,7 +417,7 @@ function validatePreferences(
 }
 
 function collectDuplicateIds(
-  values: readonly (SearchTrack | SourceConfig)[],
+  values: readonly (SearchTrack | SourceConfig | CompanyConfig)[],
   section: ConfigurationSection,
   collectionPath: string,
   issues: ConfigurationIssue[],

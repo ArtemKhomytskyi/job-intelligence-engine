@@ -126,6 +126,20 @@ export class NodeFetchHttpClient implements HttpClient {
         }
 
         const finalUrl = currentTarget.url;
+        if (activeResponse.status === 304) {
+          const headers = definedHeaders(activeResponse.headers);
+          activeResponse.cancel();
+          activeResponse = undefined;
+          return {
+            data: '',
+            status: 304,
+            attempts: 1,
+            finalUrl,
+            redirectCount,
+            headers,
+            notModified: true,
+          };
+        }
         if (activeResponse.status < 200 || activeResponse.status >= 300) {
           const status = activeResponse.status;
           activeResponse.cancel();
@@ -155,6 +169,7 @@ export class NodeFetchHttpClient implements HttpClient {
           );
         }
         const status = activeResponse.status;
+        const responseHeaders = definedHeaders(activeResponse.headers);
         let data: string;
         try {
           data = await readBoundedText(activeResponse, maximumBytes, finalUrl);
@@ -170,6 +185,7 @@ export class NodeFetchHttpClient implements HttpClient {
           attempts: 1,
           finalUrl,
           redirectCount,
+          headers: responseHeaders,
         };
       }
     } catch (cause: unknown) {
@@ -193,6 +209,16 @@ export class NodeFetchHttpClient implements HttpClient {
       request.signal.removeEventListener('abort', cancel);
     }
   }
+}
+
+function definedHeaders(
+  headers: Readonly<Record<string, string | undefined>>,
+): Readonly<Record<string, string>> {
+  return Object.fromEntries(
+    Object.entries(headers).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  );
 }
 
 function requestHeaders(

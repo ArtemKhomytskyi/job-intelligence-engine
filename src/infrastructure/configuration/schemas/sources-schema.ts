@@ -39,6 +39,54 @@ const leverSchema = z.strictObject({
   }),
 });
 
+const additionalAtsTypes = [
+  'ashby',
+  'smartrecruiters',
+  'workable',
+  'bamboohr',
+  'recruitee',
+  'teamtailor',
+  'personio',
+  'jobvite',
+] as const;
+
+const additionalAtsSchemas = additionalAtsTypes.map((type) =>
+  z.strictObject({
+    ...commonSourceFields,
+    type: z.literal(type),
+    settings: z.strictObject({
+      identifier: nonEmptyStringSchema,
+      url: publicHttpsUrlSchema.optional(),
+    }),
+  }),
+);
+
+const companySchema = z.strictObject({
+  id: idSchema,
+  name: nonEmptyStringSchema,
+  enabled: z.boolean().default(true),
+  careersUrl: publicHttpsUrlSchema.optional(),
+  websiteUrl: publicHttpsUrlSchema.optional(),
+  tags: z.array(nonEmptyStringSchema).default([]),
+  trackIds: z.array(idSchema).default([]),
+  trackPolicy: z
+    .enum(['strict', 'preferred', 'unrestricted'])
+    .default('preferred'),
+  sourceOverride: z
+    .strictObject({
+      type: z.enum([
+        'greenhouse',
+        'lever',
+        ...additionalAtsTypes,
+        'generic-page',
+        'generic-job-list',
+      ]),
+      identifier: nonEmptyStringSchema.optional(),
+      url: publicHttpsUrlSchema.optional(),
+    })
+    .optional(),
+});
+
 const genericJsonLdSchema = z.strictObject({
   ...commonSourceFields,
   type: z.literal('generic-jsonld'),
@@ -66,15 +114,19 @@ const genericJobListSchema = z.strictObject({
 });
 
 export const sourcesSchema = z.strictObject({
-  sources: z.array(
-    z.discriminatedUnion('type', [
-      greenhouseSchema,
-      leverSchema,
-      genericJsonLdSchema,
-      genericPageSchema,
-      genericJobListSchema,
-    ]),
-  ),
+  sources: z
+    .array(
+      z.discriminatedUnion('type', [
+        greenhouseSchema,
+        leverSchema,
+        ...additionalAtsSchemas,
+        genericJsonLdSchema,
+        genericPageSchema,
+        genericJobListSchema,
+      ]),
+    )
+    .default([]),
+  companies: z.array(companySchema).default([]),
 });
 
 export type SourcesDocument = z.output<typeof sourcesSchema>;

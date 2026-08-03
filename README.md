@@ -1,6 +1,6 @@
 # Job Intelligence Engine
 
-Job Intelligence Engine is a local-first application for collecting, processing, scoring, and recommending job opportunities with user-controlled configuration and explainable results. It provides strict configuration, PostgreSQL persistence, resilient collectors, bounded generic HTML extraction, versioned normalization, conservative deduplication, hard filters, deterministic scoring, diversity-aware recommendation selection, and a local server-rendered report for application tracking.
+Job Intelligence Engine is a local-first application for collecting, processing, scoring, and recommending job opportunities with user-controlled configuration and explainable results. It provides strict company/source configuration, deterministic discovery for ten ATS providers, PostgreSQL persistence, bounded parallel and incremental collection, generic HTML extraction, versioned normalization, conservative deduplication, hard filters, deterministic scoring, diversity-aware recommendation selection, and a local server-rendered report for application tracking.
 
 ## Goals
 
@@ -58,6 +58,8 @@ npm run cli -- db:check
 npm run cli -- db:status
 npm run cli -- sources:check
 npm run cli -- collect --json
+npm run cli -- discover-all
+npm run cli -- health
 npm run cli -- process --limit 1000 --json
 npm run cli -- recommend --limit 20 --json
 npm run cli -- run

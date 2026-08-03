@@ -12,6 +12,7 @@
 - [010: Connection-bound network hardening](010-connection-bound-network-hardening.md)
 - [011: Layered deterministic job extraction](011-layered-deterministic-job-extraction.md)
 - [012: Candidate intelligence and matching V2](012-candidate-intelligence-matching-v2.md)
+- [013: Multi-ATS expansion and source discovery](013-multi-ats-source-discovery.md)
 
 This directory holds living plans for substantial implementation work. Copy `TEMPLATE.md`, replace every prompt with concrete project facts, and update it throughout implementation. Keep completed plans as decision and verification history unless they contain sensitive information; sensitive information must never enter a plan.
 

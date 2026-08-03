@@ -41,6 +41,22 @@ is successful. Enabled placeholders fail with
 browser fallback fails with `BROWSER_FALLBACK_EXTERNAL_UNSAFE` at the same
 pre-collection boundary.
 
+## Source discovery and health
+
+`sources.yaml` may contain explicit `sources`, company-first `companies`, or both. Each enabled company needs a careers URL, website URL, or explicit source override; JIE will not derive a network target from a company name alone.
+
+```text
+npm run cli -- discover-company https://jobs.ashbyhq.com/example
+npm run cli -- discover-all
+npm run cli -- show-providers
+npm run cli -- show-company --company example
+npm run cli -- show-discovery --json
+npm run cli -- health
+npm run cli -- coverage
+```
+
+Discovery persists provider, safe evidence, confidence, method, collector version, and subsequent crawl health. The local report exposes the same aggregate at `/collection-health`.
+
 ## Local report
 
 ```powershell

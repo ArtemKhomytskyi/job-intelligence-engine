@@ -36,6 +36,23 @@ describe('CLI behavior', () => {
     expect(output.stderr.join('')).toContain('Unknown option');
   });
 
+  it('lists every supported ATS provider deterministically', async () => {
+    const output = captureOutput();
+    await expect(runCli(['show-providers', '--json'], output)).resolves.toBe(0);
+    expect(JSON.parse(output.stdout.join(''))).toEqual([
+      'greenhouse',
+      'lever',
+      'ashby',
+      'smartrecruiters',
+      'workable',
+      'bamboohr',
+      'recruitee',
+      'teamtailor',
+      'personio',
+      'jobvite',
+    ]);
+  });
+
   it('returns a JSON summary for valid examples', async () => {
     const output = captureOutput();
     await expect(
@@ -46,6 +63,7 @@ describe('CLI behavior', () => {
       candidate: 'Example Candidate',
       enabledTracks: 5,
       enabledSources: 0,
+      enabledCompanies: 0,
       dailyRecommendationLimit: 20,
     });
   });
