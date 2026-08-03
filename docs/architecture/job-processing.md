@@ -13,6 +13,9 @@ salary structure. Description parsing is bounded to 100,000 characters and uses
 five enriching layers: structured source fields, semantic HTML, section
 detection, bullet analysis, and sentence rules. Facts carry bounded evidence and
 optional deterministic source/strategy/confidence provenance. Static
+ATS normalization preserves heading-to-list boundaries, and a list-scoped
+section ends before unrelated prose so later compensation or boilerplate does
+not inherit a qualification label. Static
 country/language/technology aliases and safe fixed regular expressions are used;
 there is no geocoding, fetching, browser use, arbitrary source regex, fuzzy
 matching, currency conversion, annualization, external API, or LLM.

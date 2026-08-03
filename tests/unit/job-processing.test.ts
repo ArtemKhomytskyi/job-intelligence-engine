@@ -144,6 +144,129 @@ describe('processing normalization', () => {
       expect(result.job.seniority).toBe(seniority);
   });
 
+  it.each([
+    ['Product Manager', undefined],
+    ['Technical Program Manager', undefined],
+    ['Program Manager', undefined],
+    ['Project Manager', undefined],
+    ['Community Manager', undefined],
+    ['Marketing Manager', undefined],
+    ['Customer Success Manager', undefined],
+    ['Engineering Manager', 'manager'],
+    ['Software Engineering Manager', 'manager'],
+    ['People Manager', 'manager'],
+    ['Director', 'director'],
+    ['Head of Engineering', 'director'],
+    ['VP Engineering', 'vp'],
+    ['Vice President of Product', 'vp'],
+    ['Chief Product Officer', 'executive'],
+  ] as const)(
+    'classifies organizational seniority for %s',
+    (title, seniority) => {
+      const result = normalizeJobForProcessing(
+        job({ title }),
+        filters,
+        '2026-07-29T12:00:00.000Z',
+      );
+      expect(result.status).toBe('SUCCESS');
+      if (result.status === 'SUCCESS')
+        expect(result.job.seniority).toBe(seniority);
+    },
+  );
+
+  it('uses explicit people-management requirements for ambiguous manager titles', () => {
+    const result = normalizeJobForProcessing(
+      job({
+        title: 'Technical Program Manager',
+        description:
+          'You will lead a team of program managers and have direct reports.',
+      }),
+      filters,
+      '2026-07-29T12:00:00.000Z',
+    );
+    expect(result.status).toBe('SUCCESS');
+    if (result.status === 'SUCCESS')
+      expect(result.job.seniority).toBe('manager');
+  });
+
+  it.each([
+    ['Product Manager', '5+ years of product management experience.'],
+    [
+      'Technical Program Manager',
+      '5+ years of technical program management experience.',
+    ],
+  ])(
+    'does not treat discipline experience as people management for %s',
+    (title, description) => {
+      const result = normalizeJobForProcessing(
+        job({ title, description }),
+        filters,
+        '2026-07-29T12:00:00.000Z',
+      );
+      expect(result.status).toBe('SUCCESS');
+      if (result.status === 'SUCCESS')
+        expect(result.job.seniority).toBeUndefined();
+    },
+  );
+
+  it.each([
+    'Product Manager',
+    'Technical Program Manager',
+    'Program Manager',
+    'Project Manager',
+    'Community Manager',
+    'Marketing Manager',
+    'Customer Success Manager',
+  ])('does not reject IC role-name %s for management seniority', (title) => {
+    const result = normalizeJobForProcessing(
+      job({ title }),
+      filters,
+      '2026-07-29T12:00:00.000Z',
+    );
+    expect(result.status).toBe('SUCCESS');
+    if (result.status !== 'SUCCESS') return;
+    expect(
+      evaluateHardFilters({
+        job: result.job,
+        candidate,
+        configuration: filters,
+        processingTime: '2026-07-29T12:00:00.000Z',
+      }).reasons,
+    ).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'SENIORITY_EXCEEDS_MAXIMUM' }),
+      ]),
+    );
+  });
+
+  it.each([
+    ['San Francisco, CA', 'US', 'California'],
+    ['Mountain View, CA', 'US', 'California'],
+    ['Los Angeles, CA', 'US', 'California'],
+    ['California', 'US', 'California'],
+    ['CA, United States', 'US', 'California'],
+    ['Vancouver, BC', 'CA', 'British Columbia'],
+    ['Toronto, ON', 'CA', 'Ontario'],
+    ['Montréal, QC', 'CA', 'Quebec'],
+    ['Canada', 'CA', undefined],
+    ['CA', 'CA', undefined],
+  ] as const)(
+    'normalizes North American location %s',
+    (locationText, countryCode, region) => {
+      const result = normalizeJobForProcessing(
+        job({ metadata: { locationText } }),
+        filters,
+        '2026-07-29T12:00:00.000Z',
+      );
+      expect(result.status).toBe('SUCCESS');
+      if (result.status === 'SUCCESS')
+        expect(result.job.location).toMatchObject({
+          countryCode,
+          ...(region === undefined ? {} : { region }),
+        });
+    },
+  );
+
   it('matches boundary-aware skills and preserves remote country restrictions', () => {
     const result = normalizeJobForProcessing(
       job({

@@ -61,6 +61,25 @@ const SECTION_RULES: readonly {
   {
     section: 'RESPONSIBILITIES',
     pattern:
+      /^(?:what you(?:'|\u2019)ll do(?: at .+)?|what you will do(?: at .+)?|you will)$/iu,
+  },
+  {
+    section: 'PREFERRED',
+    pattern:
+      /^while (?:it(?:'|\u2019)s )?not required,? (?:it(?:'|\u2019)s )?(?:an? )?(?:added )?plus if you (?:also )?have$/iu,
+  },
+  {
+    section: 'REQUIRED',
+    pattern:
+      /^(?:what we(?:'|\u2019)d like to see|we(?:'|\u2019)d love to hear from you if you have|you have)$/iu,
+  },
+  {
+    section: 'COMPENSATION',
+    pattern: /^annual base salary range$/iu,
+  },
+  {
+    section: 'RESPONSIBILITIES',
+    pattern:
       /^(?:responsibilities|what you(?:'|’)?ll do|what you will do|your impact|the role|day to day|how you(?:'|’)?ll contribute)$/iu,
   },
   {
@@ -107,7 +126,7 @@ const TECHNOLOGY_RULES: readonly TechnologyRule[] = [
   technology(
     'Go',
     'PROGRAMMING_LANGUAGE',
-    /\bGo\b|\b(?:golang|go language)\b/gu,
+    /\bGo\b(?![- ]to[- ][Mm]arket)|\b(?:golang|go language)\b/gu,
   ),
   technology('Rust', 'PROGRAMMING_LANGUAGE', /\bRust\b|\brust language\b/gu),
   technology(
@@ -271,7 +290,7 @@ export function analyzeJobDescription(
     languageRequirements,
     workAuthorizationRequirements: policies.authorization,
     certifications: extractCertifications(segments),
-    benefits: sectionFacts.benefits,
+    benefits: extractBenefits(segments, sectionFacts.benefits),
     responsibilities: sectionFacts.responsibilities,
     requiredQualifications: sectionFacts.required,
     preferredQualifications: sectionFacts.preferred,
@@ -299,6 +318,7 @@ function segmentDescription(
   const segments: Segment[] = [];
   let section: SectionKind = 'OTHER';
   let source = 'Description';
+  let sectionHasBullets = false;
   for (const rawLine of lines) {
     const bullet = /^\s*(?:[-*•◦▪]|\d+[.)])\s+/u.test(rawLine);
     const line = clean(rawLine.replace(/^\s*(?:[-*•◦▪]|\d+[.)])\s+/u, ' '));
@@ -307,6 +327,7 @@ function segmentDescription(
     if (heading !== undefined && line.length <= 100) {
       section = heading;
       source = line.replace(/:$/u, '');
+      sectionHasBullets = false;
       continue;
     }
     const labeled = /^([^:]{2,80}):\s+(.+)$/u.exec(line);
@@ -314,10 +335,17 @@ function segmentDescription(
     if (labeled !== null && labeledSection !== undefined) {
       section = labeledSection;
       source = clean(labeled[1] ?? 'Description');
+      sectionHasBullets = false;
       pushSentences(segments, labeled[2] ?? '', source, section, false, true);
       continue;
     }
+    if (!bullet && sectionHasBullets) {
+      section = 'OTHER';
+      source = 'Description';
+      sectionHasBullets = false;
+    }
     pushSentences(segments, line, source, section, false, bullet);
+    if (bullet) sectionHasBullets = true;
   }
   return uniqueBy(segments, (item) => `${item.source}|${item.text}`);
 }
@@ -412,7 +440,7 @@ function extractExperience(
     if (!/\byears?\b/iu.test(segment.text)) continue;
     if (
       !isQualificationSection(segment.section) &&
-      !/\b(?:experience|professional|work(?:ing)?|engineering|development|industry|practice)\b/iu.test(
+      !/\b(?:experience|professional|work(?:ing)?|engineering|development|industry|practice|technical|front[- ]?end|back[- ]?end|knowledge|background)\b/iu.test(
         segment.text,
       )
     )
@@ -505,12 +533,13 @@ function extractLanguages(
     )
       continue;
     for (const rule of LANGUAGE_RULES) {
-      if (!rule.pattern.test(segment.text)) continue;
+      const match = rule.pattern.exec(segment.text);
+      if (match === null) continue;
       results.push({
         code: rule.code,
         name: rule.name,
         proficiency: languageLevel(segment.text),
-        requirement: requirementLevel(segment),
+        requirement: languageRequirement(segment, match.index),
         nativeRequired: /\bnative(?:[- ]level| speaker)?\b/iu.test(
           segment.text,
         ),
@@ -552,14 +581,33 @@ function extractSectionFacts(segments: readonly Segment[]): {
   };
 }
 
+function extractBenefits(
+  segments: readonly Segment[],
+  sectionBenefits: readonly ExtractedTextFact[],
+): readonly ExtractedTextFact[] {
+  return uniqueFacts([
+    ...sectionBenefits,
+    ...factMatches(
+      segments,
+      /\b(?:offers?|provides?)\b[^.!?]{0,160}\b(?:employee )?benefits?\b|\bhealth, dental, and vision coverage\b|\bretirement benefits with company contributions\b|\bparental leave\b|\bpaid time off\b/iu,
+      'RegexPolicy',
+    ),
+  ]);
+}
+
 function extractSalaryMentions(
   segments: readonly Segment[],
 ): readonly ExtractedTextFact[] {
-  return factMatches(
+  const facts = factMatches(
     segments,
     /(?:(?:\b(?:EUR|USD|GBP|CHF|CAD|AUD)\b|[€$£])\s*[\d,.]+\s*[kK]?(?:\s*(?:[-–—]|to)\s*(?:\b(?:EUR|USD|GBP|CHF|CAD|AUD)\b|[€$£])?\s*[\d,.]+\s*[kK]?)?|[\d,.]+\s*[kK]?(?:\s*(?:[-–—]|to)\s*[\d,.]+\s*[kK]?)?\s*\b(?:EUR|USD|GBP|CHF|CAD|AUD)\b)/iu,
     'RegexCompensation',
   );
+  return facts.map((fact) => {
+    if (!/\bannual\b/iu.test(fact.extraction.source)) return fact;
+    const value = `${fact.extraction.source}: ${fact.value}`;
+    return { ...fact, value, evidence: value };
+  });
 }
 
 function extractPolicies(segments: readonly Segment[]): {
@@ -584,7 +632,7 @@ function extractPolicies(segments: readonly Segment[]): {
     const evidence = segment.text;
     const extraction = provenance(segment, 'RegexPolicy');
     if (
-      /\b(?:authori[sz]ed to work|right to work|eligible to work|permitted to work|work permit|citizens? only|visa sponsorship|sponsor(?:ship)?)\b/iu.test(
+      /\b(?:authori[sz]ed to work|right to work|eligible to work|permitted to work|work permit|citizens? only|(?:visa|immigration|work authorization) sponsorship|sponsorship (?:to work|for (?:a )?visa))\b/iu.test(
         evidence,
       )
     ) {
@@ -607,7 +655,11 @@ function extractPolicies(segments: readonly Segment[]): {
         evidence,
         extraction,
       });
-      if (/\b(?:visa )?sponsor(?:ship)?\b/iu.test(evidence))
+      if (
+        /\b(?:(?:visa|immigration|work authorization) sponsor(?:ship)?|sponsorship (?:to work|for (?:a )?visa))\b/iu.test(
+          evidence,
+        )
+      )
         visa.push({ value: sponsorshipAvailable, evidence, extraction });
     }
     if (
@@ -634,7 +686,7 @@ function extractPolicies(segments: readonly Segment[]): {
     if (employment !== undefined)
       employmentTypes.push({ value: employment, evidence, extraction });
     if (
-      /\b(?:permanent|fixed[- ]term|freelance|contractor|consulting|temporary|zero[- ]hours)\b/iu.test(
+      /\b(?:permanent|fixed[- ]term|freelance|contractor|temporary|zero[- ]hours)\b/iu.test(
         evidence,
       )
     )
@@ -774,7 +826,7 @@ function isQualificationSection(value: SectionKind): boolean {
 
 function languageLevel(value: string): LanguageProficiency {
   if (/\bnative/iu.test(value)) return 'native';
-  if (/\b(?:c2|fluent)\b/iu.test(value)) return 'fluent';
+  if (/\b(?:c2|fluent|fluency)\b/iu.test(value)) return 'fluent';
   if (
     /\b(?:c1|professional|business level|business proficiency)\b/iu.test(value)
   )
@@ -784,13 +836,29 @@ function languageLevel(value: string): LanguageProficiency {
   return 'basic';
 }
 
+function languageRequirement(
+  segment: Segment,
+  languageIndex: number,
+): RequirementLevel {
+  const localEvidence = segment.text.slice(
+    Math.max(0, languageIndex - 30),
+    languageIndex + 80,
+  );
+  if (
+    /\b(?:fluent|fluency|proficien(?:t|cy)|native|required|must)\b/iu.test(
+      localEvidence,
+    )
+  )
+    return 'REQUIRED';
+  return requirementLevel(segment);
+}
+
 function employmentType(value: string): EmploymentType | undefined {
   if (/\bfull[- ]time\b/iu.test(value)) return 'full-time';
   if (/\bpart[- ]time\b/iu.test(value)) return 'part-time';
   if (/\b(?:internship|intern)\b/iu.test(value)) return 'internship';
   if (/\b(?:temporary|fixed[- ]term)\b/iu.test(value)) return 'temporary';
-  if (/\b(?:contract|contractor|freelance|consulting)\b/iu.test(value))
-    return 'contract';
+  if (/\b(?:contract|contractor|freelance)\b/iu.test(value)) return 'contract';
   return undefined;
 }
 
@@ -799,7 +867,7 @@ function remotePolicyValue(value: string): RemotePolicy | undefined {
   if (/\b(?:on[- ]?site|in[- ]office|office[- ]based)\b/iu.test(value))
     return 'onsite';
   if (
-    /\b(?:fully remote|remote[- ]first|remote role|remote (?:within|across|in|from)|work (?:remotely|from home))\b/iu.test(
+    /\b(?:fully remote|remote[- ]first|remote role|remote (?:within|across|in|from|anywhere)|remotely (?:within|across|in|from|anywhere)|work (?:remotely|from home))\b/iu.test(
       value,
     )
   )

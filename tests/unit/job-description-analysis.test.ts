@@ -27,6 +27,110 @@ const filters: HardFilterConfiguration = {
 };
 
 describe('layered deterministic job description analysis', () => {
+  it('repairs the audited entity-encoded Greenhouse HTML failures end to end', async () => {
+    const html = await readFile(
+      new URL(
+        '../fixtures/extraction/greenhouse-audit-regressions.html',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const encodedHtml = html
+      .replace(/&/gu, '&amp;')
+      .replace(/</gu, '&lt;')
+      .replace(/>/gu, '&gt;');
+    const description = htmlToPlainText(encodedHtml);
+    expect(description).not.toContain('<');
+    expect(description).toContain("What you'll do at Synthetic Systems:");
+    expect(description).toContain(
+      '- Build accessible product workflows for distributed teams.',
+    );
+    if (description === undefined) throw new Error('Fixture has no text.');
+
+    const result = normalizeJobForProcessing(
+      job({ description }),
+      filters,
+      '2026-08-03T12:00:00.000Z',
+    );
+    expect(result.status).toBe('SUCCESS');
+    if (result.status !== 'SUCCESS') return;
+    const analysis = result.job.descriptionAnalysis;
+    expect(analysis).toBeDefined();
+    if (analysis === undefined) return;
+
+    expect(analysis.responsibilities).toHaveLength(2);
+    expect(analysis.requiredQualifications).toHaveLength(5);
+    expect(analysis.preferredQualifications).toHaveLength(2);
+    expect(analysis.benefits.length).toBeGreaterThanOrEqual(1);
+    expect(result.job.experienceRequirements[0]).toMatchObject({
+      minimumYears: 5,
+      level: 'REQUIRED',
+    });
+    expect(result.job.languageRequirements[0]).toMatchObject({
+      code: 'en',
+      proficiency: 'fluent',
+      requirement: 'REQUIRED',
+    });
+    expect(result.job.location).toMatchObject({
+      remotePolicy: 'remote',
+      remoteScope: 'COUNTRY',
+      countryCode: 'US',
+    });
+    expect(result.job.employmentType).toBe('full-time');
+    expect(result.job.salary).toMatchObject({
+      minimumAmount: 153000,
+      maximumAmount: 376000,
+      currency: 'USD',
+      period: 'YEAR',
+      kind: 'RANGE',
+    });
+    expect(
+      result.job.skillRequirements.map((fact) => fact.canonicalName),
+    ).not.toContain('Go');
+    expect(result.job.workAuthorizationRequirements).toEqual([]);
+    expect(analysis.contractTypes).toEqual([]);
+    expect(analysis.employmentTypes.map((fact) => fact.value)).toEqual([
+      'full-time',
+    ]);
+  });
+
+  it.each([
+    ['Responsibilities', 'responsibilities'],
+    ["What you'll do", 'responsibilities'],
+    ['What you will do', 'responsibilities'],
+    ['You will', 'responsibilities'],
+    ['Requirements', 'requiredQualifications'],
+    ['Qualifications', 'requiredQualifications'],
+    ["What we'd like to see", 'requiredQualifications'],
+    ['You have', 'requiredQualifications'],
+    ['Minimum Qualifications', 'requiredQualifications'],
+    ['Preferred Qualifications', 'preferredQualifications'],
+    ['Nice to have', 'niceToHaveQualifications'],
+    ['Benefits', 'benefits'],
+    ['Perks', 'benefits'],
+  ] as const)('recognizes audited section heading %s', (heading, field) => {
+    const analysis = analyzeJobDescription(`${heading}\n- Synthetic fact.`);
+    expect(analysis[field]).toHaveLength(1);
+  });
+
+  it.each([
+    ['Remote within the United States', 'remote', undefined],
+    ['Remotely in the United States', 'remote', undefined],
+    ['Remote anywhere in the world', 'remote', 'WORLDWIDE'],
+    ['This role is hybrid', 'hybrid', undefined],
+    ['This is an in-office role', 'onsite', undefined],
+    ['This role is onsite', 'onsite', undefined],
+  ] as const)(
+    'normalizes audited work arrangement %s',
+    (description, policy, scope) => {
+      const fact = analyzeJobDescription(description).remotePolicies[0];
+      expect(fact).toMatchObject({
+        value: policy,
+        ...(scope === undefined ? {} : { scope }),
+      });
+    },
+  );
+
   it('extracts representative Greenhouse-style content across all field groups', async () => {
     const html = await readFile(
       new URL(

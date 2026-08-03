@@ -11,6 +11,12 @@ import type { CollectableSource, CollectedJobCandidate } from './models.js';
 const ENTITY_REPLACEMENTS: Readonly<Record<string, string>> = {
   amp: '&',
   apos: "'",
+  ldquo: '“',
+  lsquo: '‘',
+  mdash: '—',
+  ndash: '–',
+  rdquo: '”',
+  rsquo: '’',
   gt: '>',
   lt: '<',
   nbsp: ' ',
@@ -22,22 +28,42 @@ export function normalizeWhitespace(value: string): string {
 }
 
 export function htmlToPlainText(value: string): string | undefined {
-  const withoutExecutable = value
+  const decodedMarkup = /&lt;\/?(?:div|h[1-6]|li|ol|p|section|ul)\b/iu.test(
+    value,
+  )
+    ? decodeEntities(value)
+    : value;
+  const compactMarkup = /<(?:div|h[1-6]|li|ol|p|section|ul)\b/iu.test(
+    decodedMarkup,
+  )
+    ? decodedMarkup.replace(/\s+/gu, ' ')
+    : decodedMarkup;
+  const withSemanticHeadings = compactMarkup.replace(
+    /<(?:strong|b)\b[^>]*>([^<]{1,100})<\/(?:strong|b)>\s*(?=<(?:ol|ul)\b)/giu,
+    '\n$1\n',
+  );
+  const withoutExecutable = withSemanticHeadings
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/giu, ' ')
     .replace(/<\s*br\s*\/?\s*>/giu, '\n')
     .replace(/<li\b[^>]*>/giu, '\n- ')
     .replace(/<\/(?:div|li|p|section|h[1-6])\s*>/giu, '\n')
-    .replace(/<[^>]+>/gu, ' ')
-    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/giu, (_match, entity: string) =>
-      decodeEntity(entity),
-    );
-  const normalized = withoutExecutable
+    .replace(/<[^>]+>/gu, ' ');
+  const decodedText = decodeEntities(withoutExecutable);
+  const normalized = decodedText
+    .replace(/\n\s*-\s*\n\s*/gu, '\n- ')
     .split(/\r?\n/u)
     .map(normalizeWhitespace)
     .filter((line) => line.length > 0)
     .join('\n');
   return normalized.length === 0 ? undefined : normalized;
+}
+
+function decodeEntities(value: string): string {
+  return value.replace(
+    /&(#x[0-9a-f]+|#\d+|[a-z]+);/giu,
+    (_match, entity: string) => decodeEntity(entity),
+  );
 }
 
 export function normalizePublicUrl(value: string): string {

@@ -25,7 +25,7 @@ values are logged.
 
 ## Collector and normalization scope
 
-Greenhouse uses its public board API with `content=true`; Lever uses its public postings API in JSON mode. Top-level responses are schema validated, while malformed individual jobs are counted and isolated. External IDs are deduplicated per response. Normalization trims and Unicode-normalizes strings, converts descriptions to conservative plain text, accepts HTTPS URLs, maps only explicit employment/workplace values, and retains unknown location text as metadata. It does not infer skills, seniority, salary, geography, or suitability.
+Greenhouse uses its public board API with `content=true`; Lever uses its public postings API in JSON mode. Top-level responses are schema validated, while malformed individual jobs are counted and isolated. External IDs are deduplicated per response. Normalization trims and Unicode-normalizes strings, decodes entity-encoded ATS markup before removing executable content and tags, and preserves headings and list bullets in conservative plain text. It accepts HTTPS URLs, maps only explicit employment/workplace values, and retains unknown location text as metadata. It does not infer skills, seniority, salary, geography, or suitability.
 
 Generic sources follow the static-first bounded policy in [generic-web-extraction.md](generic-web-extraction.md). They share the same downstream normalization and persistence behavior; extraction confidence is provenance, not job ranking.
 

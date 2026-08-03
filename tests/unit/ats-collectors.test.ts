@@ -21,6 +21,52 @@ function http(data: unknown): HttpClient {
 }
 
 describe('ATS collectors', () => {
+  it('decodes Greenhouse entity-encoded HTML before preserving sections', async () => {
+    const html = await readFile(
+      'tests/fixtures/extraction/greenhouse-audit-regressions.html',
+      'utf8',
+    );
+    const content = html
+      .replace(/&/gu, '&amp;')
+      .replace(/</gu, '&lt;')
+      .replace(/>/gu, '&gt;');
+    const result = await new GreenhouseCollector(
+      http({
+        jobs: [
+          {
+            id: 301,
+            title: 'Synthetic Platform Role',
+            absolute_url: 'https://example.test/jobs/301',
+            content,
+          },
+        ],
+      }),
+      clock,
+    ).collect(
+      {
+        id: 'g',
+        type: 'greenhouse',
+        displayName: 'Acme',
+        company: 'Acme',
+        enabled: true,
+        requestTimeoutMs: 1000,
+        requestsPerSecond: 2,
+        boardToken: 'acme',
+      },
+      {
+        collectedAt: clock.now().toISOString(),
+        signal: new AbortController().signal,
+      },
+    );
+    expect(result.candidates[0]?.job.description).toContain(
+      "What you'll do at Synthetic Systems:",
+    );
+    expect(result.candidates[0]?.job.description).toContain(
+      '- Build accessible product workflows for distributed teams.',
+    );
+    expect(result.candidates[0]?.job.description).not.toContain('<div');
+  });
+
   it('maps valid Greenhouse jobs and isolates invalid items', async () => {
     const result = await new GreenhouseCollector(
       http(await fixture('greenhouse-jobs.json')),

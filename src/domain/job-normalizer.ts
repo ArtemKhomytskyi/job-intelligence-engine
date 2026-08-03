@@ -58,6 +58,13 @@ const COUNTRY_ALIASES: Readonly<Record<string, string>> = {
 };
 const KNOWN_COUNTRY_CODES = new Set(Object.values(COUNTRY_ALIASES));
 
+const NORTH_AMERICAN_REGIONS = [
+  { countryCode: 'US', code: 'CA', name: 'California' },
+  { countryCode: 'CA', code: 'BC', name: 'British Columbia' },
+  { countryCode: 'CA', code: 'ON', name: 'Ontario' },
+  { countryCode: 'CA', code: 'QC', name: 'Quebec' },
+] as const;
+
 const LANGUAGE_ALIASES = [
   ['en', 'English', /\benglish\b/iu],
   ['de', 'German', /\b(?:german|deutsch)\b/iu],
@@ -121,9 +128,9 @@ export function normalizeJobForProcessing(
       ],
     };
   }
-  const seniority = detectSeniority(cleanedTitle);
-  const normalizedTitle = removeSeniority(cleanedTitle, seniority?.level);
   const description = input.description?.slice(0, 100_000);
+  const seniority = detectSeniority(cleanedTitle, description);
+  const normalizedTitle = removeSeniority(cleanedTitle, seniority?.level);
   const descriptionAnalysis = analyzeJobDescription(
     description,
     input.metadata,
@@ -437,7 +444,8 @@ function normalizeLocation(
       details: 'Structured and textual remote policies conflict.',
       evidence: policyText,
     });
-  const textualCountry = findCountry(policyText);
+  const geographicContext = findGeographicContext(policyText);
+  const textualCountry = geographicContext.countryCode;
   const countryCodes = [
     ...input.locations.flatMap((location) => {
       const code = normalizeCountry(location.country);
@@ -478,10 +486,12 @@ function normalizeLocation(
       details: 'Location text could not be mapped confidently.',
       evidence: text,
     });
+  const region =
+    normalizedRegion(first?.region, countryCode) ?? geographicContext.region;
   return {
     ...(originalText === undefined ? {} : { originalText }),
     ...(first?.city === undefined ? {} : { city: clean(first.city) }),
-    ...(first?.region === undefined ? {} : { region: clean(first.region) }),
+    ...(region === undefined ? {} : { region }),
     ...(countryCode === undefined ? {} : { countryCode }),
     countryCodes,
     remotePolicy: policy,
@@ -515,6 +525,7 @@ function normalizedLocationParts(
 
 function detectSeniority(
   title: string,
+  description: string | undefined,
 ): { level: SeniorityLevel; evidence: string } | undefined {
   if (/\b(?:director of photography|executive assistant)\b/iu.test(title))
     return undefined;
@@ -524,8 +535,8 @@ function detectSeniority(
       /\b(?:chief (?:executive|technology|data|product) officer|c[etdpo]o)\b/iu,
     ],
     ['vp', /\b(?:vice president|vp)\b/iu],
-    ['director', /\b(?:managing director|director)\b/iu],
-    ['manager', /\bmanager\b/iu],
+    ['director', /\b(?:managing director|director|head of)\b/iu],
+    ['manager', managerSeniorityEvidence(title, description) ?? /$^/u],
     ['principal', /\bprincipal\b/iu],
     ['staff', /\bstaff\b/iu],
     [
@@ -543,6 +554,25 @@ function detectSeniority(
   return undefined;
 }
 
+function managerSeniorityEvidence(
+  title: string,
+  description: string | undefined,
+): RegExp | undefined {
+  if (
+    /\b(?:software\s+)?engineering manager\b|\bpeople manager\b|\bmanager\s*,\s*(?:software\s+)?engineering\b/iu.test(
+      title,
+    )
+  )
+    return /\bmanager\b/iu;
+  if (!/\bmanager\b/iu.test(title) || description === undefined)
+    return undefined;
+  return /\b(?:manage|managing|lead|leading) (?:a |an |the )?(?:high[- ]performing )?(?:team|teams|people|employees|engineers|reports)\b|\b(?:(?:people|team|personnel) management(?: experience)?|people manager|direct reports|performance management|manager of managers|hire and (?:coach|develop)|hiring and (?:coaching|developing))\b/iu.test(
+    description,
+  )
+    ? /\bmanager\b/iu
+    : undefined;
+}
+
 function removeSeniority(
   title: string,
   level: SeniorityLevel | undefined,
@@ -556,7 +586,7 @@ function removeSeniority(
     principal: /\bprincipal\b/giu,
     lead: /\b(?:team|technical|engineering|data|product) lead\b|\blead(?=\s+(?:engineer|developer|scientist|architect))/giu,
     manager: /\bmanager\b/giu,
-    director: /\b(?:managing director|director)(?:\s+of)?\b/giu,
+    director: /\b(?:managing director|director)(?:\s+of)?\b|\bhead of\b/giu,
     vp: /\b(?:vice president|vp)(?:\s+of)?\b/giu,
     executive:
       /\b(?:chief (?:executive|technology|data|product) officer|c[etdpo]o)\b/giu,
@@ -708,7 +738,7 @@ function extractAuthorization(
   return sentences.flatMap(
     (sentence): readonly WorkAuthorizationRequirement[] => {
       if (
-        !/\b(?:authori[sz]ed to work|right to work|sponsorship|citizens? only|security clearance)\b/iu.test(
+        !/\b(?:authori[sz]ed to work|right to work|(?:visa|immigration|work authorization) sponsorship|sponsorship (?:to work|for (?:a )?visa)|citizens? only|security clearance)\b/iu.test(
           sentence,
         )
       )
@@ -772,20 +802,68 @@ function normalizeCountry(value: string | undefined): string | undefined {
   return COUNTRY_ALIASES[cleaned.toLocaleLowerCase('en-US')];
 }
 
-function findCountry(value: string): string | undefined {
-  const explicitCode = /\b[A-Z]{2}\b/u.exec(value)?.[0];
-  if (explicitCode !== undefined && KNOWN_COUNTRY_CODES.has(explicitCode))
-    return explicitCode;
+function findGeographicContext(value: string): {
+  readonly countryCode?: string;
+  readonly region?: string;
+} {
   const lowered = value.toLocaleLowerCase('en-US');
-  for (const [name, code] of Object.entries(COUNTRY_ALIASES))
+  for (const [name, code] of Object.entries(COUNTRY_ALIASES)) {
     if (
       new RegExp(
         `(?:^|[^\\p{L}])${escapeRegExp(name)}(?:$|[^\\p{L}])`,
         'iu',
       ).test(lowered)
-    )
-      return code;
-  return undefined;
+    ) {
+      const region = findRegion(value, code);
+      return {
+        countryCode: code,
+        ...(region === undefined ? {} : { region }),
+      };
+    }
+  }
+  for (const region of NORTH_AMERICAN_REGIONS)
+    if (regionPattern(region.code, region.name).test(value))
+      return { countryCode: region.countryCode, region: region.name };
+  const explicitCode = /\b[A-Z]{2}\b/u.exec(value)?.[0];
+  return explicitCode !== undefined && KNOWN_COUNTRY_CODES.has(explicitCode)
+    ? { countryCode: explicitCode }
+    : {};
+}
+
+function findCountry(value: string): string | undefined {
+  return findGeographicContext(value).countryCode;
+}
+
+function findRegion(value: string, countryCode: string): string | undefined {
+  return NORTH_AMERICAN_REGIONS.find(
+    (region) =>
+      region.countryCode === countryCode &&
+      regionPattern(region.code, region.name).test(value),
+  )?.name;
+}
+
+function normalizedRegion(
+  value: string | undefined,
+  countryCode: string | undefined,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const cleaned = clean(value);
+  return (
+    NORTH_AMERICAN_REGIONS.find(
+      (region) =>
+        region.countryCode === countryCode &&
+        (region.code === cleaned.toUpperCase() ||
+          region.name.toLocaleLowerCase('en-US') ===
+            cleaned.toLocaleLowerCase('en-US')),
+    )?.name ?? cleaned
+  );
+}
+
+function regionPattern(code: string, name: string): RegExp {
+  return new RegExp(
+    `[,;\u2022]\\s*${escapeRegExp(code)}(?:$|[,;\\s\u2022])|^${escapeRegExp(code)}(?=\\s*[,;\u2022])|(?:^|[^\\p{L}])${escapeRegExp(name)}(?:$|[^\\p{L}])`,
+    'iu',
+  );
 }
 
 function companyKey(value: string, legalSuffixes: readonly string[]): string {
