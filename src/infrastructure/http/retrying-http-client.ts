@@ -34,7 +34,9 @@ export class RetryingHttpClient implements HttpClient {
     operation: () => Promise<T>,
   ): Promise<T> {
     let lastError: CollectionError | undefined;
+    let attempts = 0;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
+      attempts = attempt;
       try {
         const response = await operation();
         return { ...response, attempts: attempt };
@@ -62,7 +64,7 @@ export class RetryingHttpClient implements HttpClient {
     throw new CollectionError(
       lastError?.code ?? 'HTTP_NETWORK_ERROR',
       lastError?.message ?? 'HTTP request failed.',
-      { ...lastError?.context, attempts: this.maxAttempts },
+      { ...lastError?.context, attempts },
       { cause: lastError },
     );
   }

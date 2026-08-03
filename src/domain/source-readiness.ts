@@ -2,12 +2,18 @@ import type { SourceConfig } from './source-config.js';
 
 export type SourceClassification = 'PLACEHOLDER' | 'REAL';
 
+export type SourceReadinessBlockerCode =
+  | 'PLACEHOLDER_SOURCE_NOT_ALLOWED'
+  | 'SOURCE_TYPE_UNSUPPORTED'
+  | 'BROWSER_FALLBACK_EXTERNAL_UNSAFE';
+
 export interface SourceReadiness {
   readonly id: string;
   readonly type: SourceConfig['type'];
   readonly enabled: boolean;
   readonly classification: SourceClassification;
   readonly configurationReady: boolean;
+  readonly blockerCodes: readonly SourceReadinessBlockerCode[];
   readonly reasons: readonly string[];
 }
 
@@ -32,34 +38,55 @@ export function inspectSourceReadiness(
 }
 
 function inspectSource(source: SourceConfig): SourceReadiness {
-  const reasons = new Set<string>();
-  if (isPlaceholderText(source.id)) reasons.add('placeholder source ID');
+  const placeholderReasons = new Set<string>();
+  if (isPlaceholderText(source.id))
+    placeholderReasons.add('placeholder source ID');
 
   switch (source.type) {
     case 'greenhouse':
       if (isPlaceholderText(source.settings.boardToken))
-        reasons.add('placeholder Greenhouse board token');
-      inspectOptionalUrl(source.settings.boardUrl, reasons);
+        placeholderReasons.add('placeholder Greenhouse board token');
+      inspectOptionalUrl(source.settings.boardUrl, placeholderReasons);
       break;
     case 'lever':
       if (isPlaceholderText(source.settings.companySlug))
-        reasons.add('placeholder Lever company slug');
-      inspectOptionalUrl(source.settings.jobsUrl, reasons);
+        placeholderReasons.add('placeholder Lever company slug');
+      inspectOptionalUrl(source.settings.jobsUrl, placeholderReasons);
       break;
     case 'generic-jsonld':
+      inspectUrl(source.settings.url, placeholderReasons);
+      break;
     case 'generic-page':
     case 'generic-job-list':
-      inspectUrl(source.settings.url, reasons);
+      inspectUrl(source.settings.url, placeholderReasons);
       break;
   }
 
-  const reasonList = [...reasons];
+  const readinessReasons = new Set(placeholderReasons);
+  const blockerCodes = new Set<SourceReadinessBlockerCode>();
+  if (placeholderReasons.size > 0)
+    blockerCodes.add('PLACEHOLDER_SOURCE_NOT_ALLOWED');
+  if (source.type === 'generic-jsonld')
+    blockerCodes.add('SOURCE_TYPE_UNSUPPORTED');
+  if (source.type === 'generic-jsonld')
+    readinessReasons.add('source type is not supported by collection');
+  if (
+    (source.type === 'generic-page' || source.type === 'generic-job-list') &&
+    source.settings.allowBrowserFallback === true
+  ) {
+    blockerCodes.add('BROWSER_FALLBACK_EXTERNAL_UNSAFE');
+    readinessReasons.add(
+      'external browser fallback is disabled by the source network policy',
+    );
+  }
+  const reasonList = [...readinessReasons];
   return {
     id: source.id,
     type: source.type,
     enabled: source.enabled,
-    classification: reasonList.length === 0 ? 'REAL' : 'PLACEHOLDER',
+    classification: placeholderReasons.size === 0 ? 'REAL' : 'PLACEHOLDER',
     configurationReady: reasonList.length === 0,
+    blockerCodes: [...blockerCodes],
     reasons: reasonList,
   };
 }

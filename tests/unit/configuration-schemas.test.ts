@@ -26,6 +26,15 @@ describe('configuration schemas', () => {
     expect(schema.safeParse(input).success).toBe(true);
   });
 
+  it('keeps the tracked profile explicitly synthetic', async () => {
+    const content = await readFile(
+      join('config', 'profile.example.yaml'),
+      'utf8',
+    );
+    const result = profileSchema.parse(parse(content));
+    expect(result.candidate.displayName).toBe('Example Candidate');
+  });
+
   it('rejects unknown keys', () => {
     const result = profileSchema.safeParse({
       candidate: {

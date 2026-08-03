@@ -7,7 +7,7 @@ Limit each review to one configured source, one request per second, at most 10 d
 Run manually with a private ignored configuration:
 
 ```sh
-npm run cli -- collect --source-id <review-source-id> --json
+npm run cli -- collect --source <review-source-id> --json
 ```
 
 Record date, reviewer, public URL category (not private tokens), dedicated/custom ATS, static/rendered path, requests/pages/browser renders, fields present or missing, canonical/application URL accuracy, evidence/confidence, warnings, and persistence outcome. Classify failures as configuration, URL safety, network/HTTP, redirect, block page, markup/JSON-LD, semantic ambiguity, traversal limit, browser unavailable/timeout, normalization, or persistence.

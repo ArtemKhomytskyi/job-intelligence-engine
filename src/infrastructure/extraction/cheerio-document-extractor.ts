@@ -45,12 +45,17 @@ export class CheerioDocumentExtractor implements HtmlDocumentExtractor {
     const objects = discoverJobPostingObjects(document, warnings);
     const links = discoverLinks(document, finalUrl, maximumLinks);
     const jobs = objects.flatMap((object): readonly ExtractedJob[] => {
-      const decoded = decodeJobPosting(
-        object,
-        finalUrl,
-        htmlCanonical,
-        configuredCompany,
-      );
+      let decoded: ExtractedJob | undefined;
+      try {
+        decoded = decodeJobPosting(
+          object,
+          finalUrl,
+          htmlCanonical,
+          configuredCompany,
+        );
+      } catch {
+        decoded = undefined;
+      }
       if (decoded === undefined)
         warnings.push(
           'A malformed or incomplete JobPosting object was skipped.',

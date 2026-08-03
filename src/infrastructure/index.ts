@@ -27,13 +27,27 @@ export { GreenhouseCollector } from './collectors/greenhouse-collector.js';
 export { LeverCollector } from './collectors/lever-collector.js';
 export { StreamLogger } from './logging/stream-logger.js';
 export { PublicUrlSafetyValidator } from './http/public-url-safety-validator.js';
-export type { AddressResolver } from './http/public-url-safety-validator.js';
+export type {
+  AddressResolver,
+  ConnectionBoundUrlValidator,
+  ValidatedConnectionTarget,
+} from './http/public-url-safety-validator.js';
+export {
+  NodeConnectionBoundTransport,
+  buildConnectionBoundRequestOptions,
+} from './http/node-connection-bound-transport.js';
+export type {
+  ConnectionBoundTransport,
+  ConnectionBoundTransportRequest,
+  ConnectionBoundTransportResponse,
+} from './http/node-connection-bound-transport.js';
 export { HttpPageAcquirer } from './extraction/http-page-acquirer.js';
 export {
   CheerioDocumentExtractor,
   detectAts,
 } from './extraction/cheerio-document-extractor.js';
 export { PlaywrightBrowserRenderer } from './browser/playwright-browser-renderer.js';
+export type { BrowserLauncher } from './browser/playwright-browser-renderer.js';
 export { shouldBlockBrowserResource } from './browser/resource-policy.js';
 export { Sha256ProcessingHasher } from './crypto/sha256-processing-hasher.js';
 export { PrismaRecommendationReportRepository } from './persistence/recommendation-report-repository.js';

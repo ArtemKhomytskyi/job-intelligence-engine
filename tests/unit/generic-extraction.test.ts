@@ -157,6 +157,27 @@ describe('generic document extraction', () => {
     expect(result.atsDetections[0]).toMatchObject({ provider: 'lever' });
   });
 
+  it('isolates deeply nested JSON-LD fields instead of exhausting the stack', () => {
+    const nested = `${'['.repeat(10_000)}0${']'.repeat(10_000)}`;
+    const html = `<script type="application/ld+json">{
+      "@type":"JobPosting",
+      "title":"Nested role",
+      "hiringOrganization":"Synthetic Company",
+      "description":"Synthetic description",
+      "url":"/jobs/nested",
+      "baseSalary":${nested}
+    }</script>`;
+
+    expect(() =>
+      extractor.extract(
+        html,
+        'https://example.test/jobs/nested',
+        'Synthetic Company',
+        10,
+      ),
+    ).not.toThrow();
+  });
+
   it.each([
     ['login', '<title>Sign in to continue</title>'],
     ['access-denied', '<h1>Access denied</h1>'],
@@ -192,7 +213,7 @@ describe('URL and browser resource safety', () => {
   const resolver: AddressResolver = {
     resolve: (host) =>
       Promise.resolve(
-        host === 'public.example' ? ['203.0.113.10'] : ['10.0.0.1'],
+        host === 'public.example' ? ['93.184.216.34'] : ['10.0.0.1'],
       ),
   };
   const validator = new PublicUrlSafetyValidator(resolver);
@@ -200,6 +221,12 @@ describe('URL and browser resource safety', () => {
     await expect(
       validator.validate('https://public.example/jobs?q=1#x', false),
     ).resolves.toBe('https://public.example/jobs?q=1');
+    await expect(
+      validator.validate('https://192.0.1.1/jobs', false),
+    ).resolves.toBe('https://192.0.1.1/jobs');
+    await expect(
+      validator.validate('https://198.51.99.1/jobs', false),
+    ).resolves.toBe('https://198.51.99.1/jobs');
     await expect(
       validator.validate('http://127.0.0.1:3000/jobs', true),
     ).resolves.toBe('http://127.0.0.1:3000/jobs');
@@ -220,12 +247,18 @@ describe('URL and browser resource safety', () => {
       'https://172.16.1.1/jobs',
       'https://192.168.1.1/jobs',
       'https://100.64.1.1/jobs',
+      'https://192.0.2.1/jobs',
+      'https://198.18.0.1/jobs',
+      'https://198.51.100.1/jobs',
+      'https://203.0.113.1/jobs',
       'https://224.0.0.1/jobs',
       'https://[::1]/jobs',
       'https://[::]/jobs',
       'https://[fc00::1]/jobs',
       'https://[fd00::1]/jobs',
       'https://[fe80::1]/jobs',
+      'https://[100::1]/jobs',
+      'https://[2001:db8::1]/jobs',
       'https://[ff00::1]/jobs',
       'https://[::ffff:127.0.0.1]/jobs',
     ])
@@ -240,7 +273,7 @@ describe('URL and browser resource safety', () => {
     });
     await expect(
       emptyResolver.validate('https://missing.example/jobs', false),
-    ).rejects.toMatchObject({ code: 'URL_UNSAFE' });
+    ).rejects.toMatchObject({ code: 'DNS_RESOLUTION_FAILED' });
   });
   it('blocks heavy browser resources but allows application data', () => {
     expect(shouldBlockBrowserResource('image')).toBe(true);

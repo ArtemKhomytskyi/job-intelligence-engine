@@ -8,13 +8,17 @@ import {
 } from '../../src/application/index.js';
 import {
   NodeFetchHttpClient,
+  PublicUrlSafetyValidator,
   RateLimitedHttpClient,
   RetryingHttpClient,
+  type ConnectionBoundTransport,
+  type ConnectionBoundTransportRequest,
+  type ConnectionBoundTransportResponse,
 } from '../../src/infrastructure/index.js';
 
 const signal = new AbortController().signal;
 const request = {
-  url: 'https://example.test/jobs?token=secret',
+  url: 'https://source.synthetic.test/jobs?token=secret',
   timeoutMs: 1000,
   signal,
   rateLimitKey: 'source',
@@ -22,53 +26,48 @@ const request = {
 };
 const decoder = { decode: (value: unknown) => value };
 const logger: Logger = { debug() {}, info() {}, warn() {}, error() {} };
+const safety = new PublicUrlSafetyValidator({
+  resolve: () => Promise.resolve(['93.184.216.34']),
+});
 
 describe('HTTP clients', () => {
   it('decodes JSON and classifies server responses without query leakage', async () => {
-    const client = new NodeFetchHttpClient(() =>
-      Promise.resolve(
-        new Response('{"ok":true}', {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
-      ),
-    );
+    const client = httpClient(() => response('{"ok":true}'));
     await expect(client.getJson(request, decoder)).resolves.toMatchObject({
       data: { ok: true },
       attempts: 1,
     });
-    const failing = new NodeFetchHttpClient(() =>
-      Promise.resolve(new Response('{}', { status: 503 })),
-    );
+    const failing = httpClient(() => response('{}', 503));
     await expect(failing.getJson(request, decoder)).rejects.toMatchObject({
       code: 'HTTP_SERVER_ERROR',
-      context: { endpoint: 'https://example.test/jobs', retryable: true },
+      context: {
+        endpoint: 'https://source.synthetic.test/jobs',
+        retryable: true,
+      },
     });
     for (const [status, code] of [
       [404, 'HTTP_CLIENT_ERROR'],
       [429, 'HTTP_RATE_LIMITED'],
     ] as const) {
-      const statusClient = new NodeFetchHttpClient(() =>
-        Promise.resolve(new Response('{}', { status })),
-      );
+      const statusClient = httpClient(() => response('{}', status));
       await expect(
         statusClient.getJson(request, decoder),
       ).rejects.toMatchObject({ code });
     }
-    const invalid = new NodeFetchHttpClient(() =>
-      Promise.resolve(new Response('{')),
-    );
+    const invalid = httpClient(() => response('{'));
     await expect(invalid.getJson(request, decoder)).rejects.toMatchObject({
       code: 'HTTP_INVALID_JSON',
     });
-    const oversized = new NodeFetchHttpClient(() =>
-      Promise.resolve(
-        new Response('{}', { headers: { 'content-length': '6000000' } }),
-      ),
+    let cancelled = false;
+    const oversized = httpClient(() =>
+      response('{}', 200, { 'content-length': '6000000' }, () => {
+        cancelled = true;
+      }),
     );
     await expect(oversized.getJson(request, decoder)).rejects.toMatchObject({
       code: 'HTTP_RESPONSE_INVALID',
     });
+    expect(cancelled).toBe(true);
     await expect(
       new NodeFetchHttpClient().getJson(
         { ...request, url: 'http://example.test' },
@@ -79,10 +78,10 @@ describe('HTTP clients', () => {
 
   it('maps timeout and caller cancellation separately', async () => {
     vi.useFakeTimers();
-    const hanging = new NodeFetchHttpClient(
-      (_url, init) =>
+    const hanging = httpClient(
+      (input) =>
         new Promise((_resolve, reject) =>
-          init?.signal?.addEventListener('abort', () =>
+          input.signal.addEventListener('abort', () =>
             reject(new Error('aborted')),
           ),
         ),
@@ -107,36 +106,69 @@ describe('HTTP clients', () => {
   });
 
   it('bounds redirects and detects redirect loops', async () => {
-    const redirecting = new NodeFetchHttpClient((url) => {
-      const value =
-        typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
-      return Promise.resolve(
-        new Response('', {
-          status: 302,
-          headers: { location: value.endsWith('/one') ? '/two' : '/one' },
+    const redirecting = httpClient((input) =>
+      Promise.resolve(
+        response('', 302, {
+          location: input.target.url.endsWith('/one') ? '/two' : '/one',
         }),
-      );
-    });
+      ),
+    );
     await expect(
       redirecting.getText({
         ...request,
-        url: 'https://example.test/one',
+        url: 'https://source.synthetic.test/one',
         maximumRedirects: 5,
       }),
     ).rejects.toMatchObject({ code: 'REDIRECT_LOOP' });
     await expect(
       redirecting.getText({
         ...request,
-        url: 'https://example.test/one',
+        url: 'https://source.synthetic.test/one',
         maximumRedirects: 0,
       }),
     ).rejects.toMatchObject({ code: 'REDIRECT_LIMIT_EXCEEDED' });
-    const missingLocation = new NodeFetchHttpClient(() =>
-      Promise.resolve(new Response('', { status: 302 })),
-    );
+    const missingLocation = httpClient(() => response('', 302));
     await expect(missingLocation.getText(request)).rejects.toMatchObject({
       code: 'HTTP_RESPONSE_INVALID',
     });
+  });
+
+  it('stops consuming a streamed response when the byte limit is exceeded', async () => {
+    let cancelled = false;
+    const body: AsyncIterable<Uint8Array> = {
+      async *[Symbol.asyncIterator]() {
+        for (;;) {
+          await Promise.resolve();
+          yield new Uint8Array([65, 66, 67]);
+        }
+      },
+    };
+    const client = httpClient(() => ({
+      status: 200,
+      headers: { 'content-length': '1' },
+      body,
+      cancel() {
+        cancelled = true;
+      },
+    }));
+
+    await expect(
+      client.getText({ ...request, maximumResponseBytes: 5 }),
+    ).rejects.toMatchObject({ code: 'HTML_RESPONSE_TOO_LARGE' });
+    expect(cancelled).toBe(true);
+  });
+
+  it('rejects encoded bodies instead of performing unbounded decompression', async () => {
+    let cancelled = false;
+    const client = httpClient(() =>
+      response('compressed', 200, { 'content-encoding': 'gzip' }, () => {
+        cancelled = true;
+      }),
+    );
+    await expect(client.getText(request)).rejects.toMatchObject({
+      code: 'HTTP_CONTENT_ENCODING_UNSUPPORTED',
+    });
+    expect(cancelled).toBe(true);
   });
 
   it('retries only retryable failures', async () => {
@@ -178,7 +210,10 @@ describe('HTTP clients', () => {
         request,
         decoder,
       ),
-    ).rejects.toMatchObject({ code: 'HTTP_CLIENT_ERROR' });
+    ).rejects.toMatchObject({
+      code: 'HTTP_CLIENT_ERROR',
+      context: { attempts: 1 },
+    });
   });
 
   it('enforces a minimum interval for the same source', async () => {
@@ -208,3 +243,35 @@ describe('HTTP clients', () => {
     expect(waits).toEqual([100]);
   });
 });
+
+function httpClient(
+  operation: (
+    input: ConnectionBoundTransportRequest,
+  ) =>
+    | ConnectionBoundTransportResponse
+    | Promise<ConnectionBoundTransportResponse>,
+): NodeFetchHttpClient {
+  const transport: ConnectionBoundTransport = {
+    request: (input) => Promise.resolve(operation(input)),
+  };
+  return new NodeFetchHttpClient(safety, transport);
+}
+
+function response(
+  body: string,
+  status = 200,
+  headers: Readonly<Record<string, string>> = {},
+  onCancel: () => void = () => undefined,
+): ConnectionBoundTransportResponse {
+  return {
+    status,
+    headers,
+    body: {
+      async *[Symbol.asyncIterator]() {
+        await Promise.resolve();
+        yield new TextEncoder().encode(body);
+      },
+    },
+    cancel: onCancel,
+  };
+}

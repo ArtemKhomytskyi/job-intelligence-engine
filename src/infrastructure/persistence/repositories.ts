@@ -707,7 +707,9 @@ export class PrismaRecommendationBatchRepository implements RecommendationBatchR
         sourceReferences: {
           take: 20,
           orderBy: [{ firstSeenAt: 'asc' }, { id: 'asc' }],
-          include: { source: { select: { id: true, type: true } } },
+          include: {
+            source: { select: { configSourceId: true, type: true } },
+          },
         },
       },
     });
@@ -722,7 +724,9 @@ export class PrismaRecommendationBatchRepository implements RecommendationBatchR
           inputRevisionNumber: decision.inputRevisionNumber,
           currentStatus: record.currentStatus,
           normalizedJob: parseNormalizedPayload(record.normalizedPayload),
-          sourceIds: record.sourceReferences.map((item) => item.source.id),
+          sourceIds: record.sourceReferences.map(
+            (item) => item.source.configSourceId,
+          ),
           source: {
             ...(record.sourceReferences[0]?.source.type === undefined
               ? {}

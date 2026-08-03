@@ -5,16 +5,24 @@ import {
   type HttpRequest,
   type HttpTextResponse,
   type JsonDecoder,
-  type UrlSafetyValidator,
 } from '../../application/index.js';
+import {
+  NodeConnectionBoundTransport,
+  type ConnectionBoundTransport,
+  type ConnectionBoundTransportResponse,
+} from './node-connection-bound-transport.js';
+import {
+  PublicUrlSafetyValidator,
+  type ConnectionBoundUrlValidator,
+} from './public-url-safety-validator.js';
 
 const DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_REDIRECTS = 5;
 
 export class NodeFetchHttpClient implements HttpClient {
   public constructor(
-    private readonly fetchImplementation: typeof fetch = fetch,
-    private readonly urlValidator: UrlSafetyValidator = new BasicUrlSafetyValidator(),
+    private readonly urlValidator: ConnectionBoundUrlValidator = new PublicUrlSafetyValidator(),
+    private readonly transport: ConnectionBoundTransport = new NodeConnectionBoundTransport(),
   ) {}
 
   public async getJson<T>(
@@ -56,51 +64,50 @@ export class NodeFetchHttpClient implements HttpClient {
 
   public async getText(request: HttpRequest): Promise<HttpTextResponse> {
     const allowLoopback = request.allowTestLoopback ?? false;
-    let currentUrl = await this.urlValidator.validate(
+    let currentTarget = await this.urlValidator.resolveForConnection(
       request.url,
       allowLoopback,
     );
-    if (request.signal.aborted)
-      throw new CollectionError(
-        'COLLECTION_ABORTED',
-        'Collection was cancelled.',
-        { endpoint: safeEndpoint(currentUrl), retryable: false },
-      );
-    const endpoint = safeEndpoint(currentUrl);
+    if (request.signal.aborted) throw cancelled(currentTarget.url);
+
+    const endpoint = safeEndpoint(currentTarget.url);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), request.timeoutMs);
-    const cancel = (): void => controller.abort();
+    const caller = { cancelled: false };
+    const cancel = (): void => {
+      caller.cancelled = true;
+      controller.abort();
+    };
     request.signal.addEventListener('abort', cancel, { once: true });
     const visited = new Set<string>();
     let redirectCount = 0;
+    let activeResponse: ConnectionBoundTransportResponse | undefined;
     try {
       for (;;) {
-        if (visited.has(currentUrl))
+        if (visited.has(currentTarget.url))
           throw new CollectionError(
             'REDIRECT_LOOP',
             'HTTP redirect loop detected.',
             {
-              endpoint: safeEndpoint(currentUrl),
+              endpoint: safeEndpoint(currentTarget.url),
               retryable: false,
             },
           );
-        visited.add(currentUrl);
-        const response = await this.fetchImplementation(currentUrl, {
-          method: 'GET',
-          headers: {
-            accept: 'text/html,application/xhtml+xml,application/json',
-            ...request.headers,
-          },
-          redirect: 'manual',
+        visited.add(currentTarget.url);
+        activeResponse = await this.transport.request({
+          target: currentTarget,
+          headers: requestHeaders(request.headers),
           signal: controller.signal,
         });
-        if (isRedirect(response.status)) {
-          const location = response.headers.get('location');
-          if (location === null)
+        if (isRedirect(activeResponse.status)) {
+          const location = activeResponse.headers['location'];
+          activeResponse.cancel();
+          activeResponse = undefined;
+          if (location === undefined)
             throw new CollectionError(
               'HTTP_RESPONSE_INVALID',
               'Redirect response omitted its target.',
-              { endpoint: safeEndpoint(currentUrl), retryable: false },
+              { endpoint: safeEndpoint(currentTarget.url), retryable: false },
             );
           if (
             redirectCount >= (request.maximumRedirects ?? DEFAULT_MAX_REDIRECTS)
@@ -108,32 +115,58 @@ export class NodeFetchHttpClient implements HttpClient {
             throw new CollectionError(
               'REDIRECT_LIMIT_EXCEEDED',
               'HTTP redirect limit was exceeded.',
-              { endpoint: safeEndpoint(currentUrl), retryable: false },
+              { endpoint: safeEndpoint(currentTarget.url), retryable: false },
             );
-          currentUrl = await this.urlValidator.validate(
-            new URL(location, currentUrl).toString(),
+          currentTarget = await this.urlValidator.resolveForConnection(
+            new URL(location, currentTarget.url).toString(),
             allowLoopback,
           );
           redirectCount += 1;
           continue;
         }
-        const finalUrl = await this.urlValidator.validate(
-          response.url.length === 0 ? currentUrl : response.url,
-          allowLoopback,
-        );
-        if (!response.ok)
-          throw statusError(response.status, safeEndpoint(finalUrl));
+
+        const finalUrl = currentTarget.url;
+        if (activeResponse.status < 200 || activeResponse.status >= 300) {
+          const status = activeResponse.status;
+          activeResponse.cancel();
+          activeResponse = undefined;
+          throw statusError(status, safeEndpoint(finalUrl));
+        }
         const maximumBytes =
           request.maximumResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
-        const declaredLength = Number(response.headers.get('content-length'));
-        if (Number.isFinite(declaredLength) && declaredLength > maximumBytes)
+        const declaredLength = Number(activeResponse.headers['content-length']);
+        if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+          activeResponse.cancel();
+          activeResponse = undefined;
           throw tooLarge(finalUrl);
-        const data = await response.text();
-        if (new TextEncoder().encode(data).byteLength > maximumBytes)
-          throw tooLarge(finalUrl);
+        }
+        const encoding = activeResponse.headers['content-encoding'];
+        if (
+          encoding !== undefined &&
+          encoding.trim().length > 0 &&
+          encoding.toLocaleLowerCase('en-US') !== 'identity'
+        ) {
+          activeResponse.cancel();
+          activeResponse = undefined;
+          throw new CollectionError(
+            'HTTP_CONTENT_ENCODING_UNSUPPORTED',
+            'Encoded HTTP responses are not accepted by the bounded transport.',
+            { endpoint: safeEndpoint(finalUrl), retryable: false },
+          );
+        }
+        const status = activeResponse.status;
+        let data: string;
+        try {
+          data = await readBoundedText(activeResponse, maximumBytes, finalUrl);
+        } catch (cause: unknown) {
+          activeResponse.cancel();
+          activeResponse = undefined;
+          throw cause;
+        }
+        activeResponse = undefined;
         return {
           data,
-          status: response.status,
+          status,
           attempts: 1,
           finalUrl,
           redirectCount,
@@ -141,13 +174,7 @@ export class NodeFetchHttpClient implements HttpClient {
       }
     } catch (cause: unknown) {
       if (cause instanceof CollectionError) throw cause;
-      if (isSignalAborted(request.signal))
-        throw new CollectionError(
-          'COLLECTION_ABORTED',
-          'Collection was cancelled.',
-          { endpoint, retryable: false },
-          { cause },
-        );
+      if (caller.cancelled) throw cancelled(currentTarget.url, cause);
       if (controller.signal.aborted)
         throw new CollectionError(
           'HTTP_TIMEOUT',
@@ -168,45 +195,49 @@ export class NodeFetchHttpClient implements HttpClient {
   }
 }
 
-function isSignalAborted(signal: AbortSignal): boolean {
-  return signal.aborted;
+function requestHeaders(
+  provided: Readonly<Record<string, string>> | undefined,
+): Readonly<Record<string, string>> {
+  const headers = Object.fromEntries(
+    Object.entries(provided ?? {}).filter(
+      ([name]) =>
+        !['host', 'connection', 'content-length', 'transfer-encoding'].includes(
+          name.toLocaleLowerCase('en-US'),
+        ),
+    ),
+  );
+  return {
+    accept: 'text/html,application/xhtml+xml,application/json',
+    ...headers,
+    'accept-encoding': 'identity',
+  };
 }
 
-class BasicUrlSafetyValidator implements UrlSafetyValidator {
-  public validate(value: string, allowTestLoopback: boolean): Promise<string> {
-    let url: URL;
-    try {
-      url = new URL(value);
-    } catch (cause: unknown) {
-      return Promise.reject(
-        new CollectionError(
-          'URL_UNSAFE',
-          'URL is malformed.',
-          { retryable: false },
-          { cause },
-        ),
-      );
+async function readBoundedText(
+  response: ConnectionBoundTransportResponse,
+  maximumBytes: number,
+  finalUrl: string,
+): Promise<string> {
+  const bytes = new Uint8Array(maximumBytes);
+  let totalBytes = 0;
+  for await (const chunk of response.body) {
+    if (totalBytes + chunk.byteLength > maximumBytes) {
+      response.cancel();
+      throw tooLarge(finalUrl);
     }
-    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    if (
-      url.protocol !== 'https:' &&
-      !(allowTestLoopback && url.protocol === 'http:' && loopback)
-    )
-      return Promise.reject(
-        new CollectionError('URL_UNSAFE', 'URL must use public HTTPS.', {
-          endpoint: safeEndpoint(url.toString()),
-          retryable: false,
-        }),
-      );
-    if (url.username || url.password)
-      return Promise.reject(
-        new CollectionError('URL_UNSAFE', 'URL must not contain credentials.', {
-          retryable: false,
-        }),
-      );
-    url.hash = '';
-    return Promise.resolve(url.toString());
+    bytes.set(chunk, totalBytes);
+    totalBytes += chunk.byteLength;
   }
+  return new TextDecoder().decode(bytes.subarray(0, totalBytes));
+}
+
+function cancelled(url: string, cause?: unknown): CollectionError {
+  return new CollectionError(
+    'COLLECTION_ABORTED',
+    'Collection was cancelled.',
+    { endpoint: safeEndpoint(url), retryable: false },
+    cause === undefined ? undefined : { cause },
+  );
 }
 
 function safeEndpoint(value: string): string {
