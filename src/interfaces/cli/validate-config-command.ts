@@ -10,6 +10,7 @@ import {
 import {
   formatConfigurationErrors,
   formatConfigurationSummary,
+  formatConfigurationWarnings,
 } from './output.js';
 
 export interface CommandOutput {
@@ -41,6 +42,10 @@ export async function runValidateConfig(
     output.writeStdout(
       `${formatConfigurationSummary(summarizeConfiguration(bundle), options.asJson)}\n`,
     );
+    if ((bundle.warnings?.length ?? 0) > 0)
+      output.writeStderr(
+        `${formatConfigurationWarnings(bundle.warnings ?? [], options.asJson)}\n`,
+      );
     return 0;
   } catch (error: unknown) {
     const issues =

@@ -166,7 +166,8 @@ export class PrismaProcessingRepository implements ProcessingRepository {
           ? {}
           : { description: record.description }),
         locations: processingLocations(record.locations),
-        ...(record.remotePolicy === null
+        ...(record.remotePolicy === null ||
+        record.remotePolicy === 'unspecified'
           ? {}
           : { remotePolicy: processingRemotePolicy(record.remotePolicy) }),
         ...(record.employmentType === null
@@ -293,6 +294,11 @@ export class PrismaProcessingRepository implements ProcessingRepository {
           normalizedAt: parseTimestamp(job.normalizedAt, 'normalizedAt'),
           normalizationIssues: toPrismaJson(input.normalizationIssues),
           normalizedPayload: toPrismaJson(job),
+          remotePolicy:
+            job.location.remotePolicy === 'unspecified'
+              ? null
+              : job.location.remotePolicy,
+          employmentType: job.employmentType ?? null,
           seniority: job.seniority ?? null,
           requiredExperience:
             job.experienceRequirements.length === 0
@@ -758,6 +764,35 @@ export class PrismaRecommendationBatchRepository implements RecommendationBatchR
       where: { inputHash: input.inputHash },
     });
     if (created.count === 0) return this.loadBatch(batch.id, true);
+    if (input.evaluations.length > 0)
+      await this.client.recommendationEvaluation.createMany({
+        data: input.evaluations.map((evaluation) => ({
+          batchId: batch.id,
+          jobId: evaluation.jobId,
+          processingDecisionId: evaluation.processingDecisionId,
+          inputRevisionNumber: evaluation.inputRevisionNumber,
+          outcome: evaluation.outcome,
+          ...(evaluation.exclusionReason === undefined
+            ? {}
+            : { exclusionReason: evaluation.exclusionReason }),
+          threshold: evaluation.threshold,
+          ...(evaluation.score === undefined
+            ? {}
+            : {
+                selectedTrackId: evaluation.score.selectedTrackId,
+                totalScore: evaluation.score.totalScore,
+                candidateFitScore: evaluation.score.candidateFitScore ?? 0,
+                opportunityScore: evaluation.score.opportunityScore,
+                completeness: evaluation.score.completeness,
+                components: toPrismaJson(evaluation.score.components),
+                positiveReasons: toPrismaJson(evaluation.score.positiveReasons),
+                concerns: toPrismaJson(evaluation.score.concerns),
+                missingData: toPrismaJson(evaluation.score.missingData),
+              }),
+          trackEvaluations: toPrismaJson(evaluation.trackEvaluations),
+        })),
+        skipDuplicates: true,
+      });
     for (const item of input.items) {
       const scoreKey = `${input.inputHash}:${item.jobId}`;
       const score = await this.client.jobScore.create({
@@ -814,6 +849,7 @@ export class PrismaRecommendationBatchRepository implements RecommendationBatchR
     const batch = await this.client.recommendationBatch.findUniqueOrThrow({
       where: { id },
       include: {
+        _count: { select: { evaluations: true } },
         recommendations: {
           orderBy: [{ rank: 'asc' }, { id: 'asc' }],
           include: {
@@ -829,6 +865,7 @@ export class PrismaRecommendationBatchRepository implements RecommendationBatchR
       evaluationTime: batch.evaluationTime.toISOString(),
       requestedLimit: batch.requestedLimit,
       selectedCount: batch.selectedCount,
+      evaluatedCount: batch._count.evaluations,
       configurationFingerprint: batch.configurationFingerprint,
       scoringVersion: batch.scoringVersion,
       selectorVersion: batch.selectorVersion,

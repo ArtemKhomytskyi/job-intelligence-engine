@@ -13,6 +13,9 @@ const commonSourceFields = {
   displayName: nonEmptyStringSchema,
   tags: z.array(nonEmptyStringSchema),
   trackIds: z.array(idSchema),
+  trackPolicy: z
+    .enum(['strict', 'preferred', 'unrestricted'])
+    .default('strict'),
   company: nonEmptyStringSchema.optional(),
   requestTimeoutMs: z.number().int().min(1_000).max(60_000).optional(),
   requestsPerSecond: z.number().positive().max(10).optional(),

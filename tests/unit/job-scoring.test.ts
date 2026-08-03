@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createPercentage,
+  evaluateHardFilters,
+  evaluateTracks,
   scoreJobAgainstTrack,
   selectBestTrack,
   selectDiverseRecommendations,
@@ -170,7 +172,7 @@ describe('deterministic job scoring', () => {
         score(job({ experienceRequirements: [] }), track),
         'experience',
       ),
-    ).toMatchObject({ rawScore: 50, confidence: 0.25 });
+    ).toMatchObject({ rawScore: 0, confidence: 0.25 });
   });
 
   it('scores education, location, authorization, salary, freshness, application, and source evidence', () => {
@@ -246,6 +248,101 @@ describe('deterministic job scoring', () => {
         evaluationTime: '2026-07-30T12:00:00.000Z',
       }).selectedTrackId,
     ).toBe('a-track');
+  });
+
+  it('changes recommendations for data, DevRel, and sales candidates over the same pool', () => {
+    const pool = [
+      job({
+        id: 'data-scientist',
+        cleanedTitle: 'Data Scientist',
+        normalizedTitle: 'Data Scientist',
+        description: 'Build machine learning models with Python.',
+      }),
+      job({
+        id: 'developer-advocate',
+        cleanedTitle: 'Developer Advocate',
+        normalizedTitle: 'Developer Advocate',
+        description:
+          'Create technical content and support developer relations.',
+      }),
+      job({
+        id: 'account-executive',
+        cleanedTitle: 'Account Executive',
+        normalizedTitle: 'Account Executive',
+        description: 'Own enterprise sales and customer accounts.',
+      }),
+    ];
+    const tracks = candidateTracks();
+    const dataCandidate = candidateFor('Data Scientist', 'data-science', [
+      'sales',
+      'recruiting',
+    ]);
+    const devrelCandidate = candidateFor(
+      'Developer Advocate',
+      'developer-relations',
+      ['sales'],
+    );
+    const salesCandidate = candidateFor('Account Executive', 'sales', []);
+
+    expect(rankPool(pool, dataCandidate, tracks)[0]?.jobId).toBe(
+      'data-scientist',
+    );
+    expect(rankPool(pool, devrelCandidate, tracks)[0]?.jobId).toBe(
+      'developer-advocate',
+    );
+    expect(rankPool(pool, salesCandidate, tracks)[0]?.jobId).toBe(
+      'account-executive',
+    );
+    expect(
+      evaluateCandidate(pool[2]!, dataCandidate, tracks).exclusionReason,
+    ).toBe('NO_VALID_TRACK_MATCH');
+    expect(
+      evaluateHardFilters({
+        job: pool[2]!,
+        candidate: dataCandidate,
+        configuration: search.preferences.hardFilters,
+        processingTime: '2026-07-30T12:00:00.000Z',
+      }).reasons.map((item) => item.code),
+    ).toContain('EXCLUDED_ROLE_FAMILY');
+    expect(
+      evaluateCandidate(pool[2]!, salesCandidate, tracks).score,
+    ).toBeDefined();
+  });
+
+  it('uses candidate seniority limits without preventing leadership matches for a senior manager', () => {
+    const leadership = job({
+      cleanedTitle: 'Director of Engineering',
+      normalizedTitle: 'Director of Engineering',
+      seniority: 'director',
+      description: 'Lead engineering managers and organizational strategy.',
+    });
+    const junior = {
+      ...candidateFor('Software Engineer', 'software-engineering', []),
+      currentSeniority: 'entry' as const,
+      maximumTargetSeniority: 'mid' as const,
+      allowSeniorityStretch: false,
+    };
+    const manager = {
+      ...candidateFor('Director of Engineering', 'people-management', []),
+      currentSeniority: 'manager' as const,
+      maximumTargetSeniority: 'director' as const,
+    };
+    expect(
+      evaluateHardFilters({
+        job: leadership,
+        candidate: junior,
+        configuration: search.preferences.hardFilters,
+        processingTime: '2026-07-30T12:00:00.000Z',
+      }).reasons.map((item) => item.code),
+    ).toContain('SENIORITY_EXCEEDS_MAXIMUM');
+    expect(
+      evaluateHardFilters({
+        job: leadership,
+        candidate: manager,
+        configuration: search.preferences.hardFilters,
+        processingTime: '2026-07-30T12:00:00.000Z',
+      }).reasons.map((item) => item.code),
+    ).not.toContain('SENIORITY_EXCEEDS_MAXIMUM');
   });
 });
 
@@ -349,6 +446,92 @@ function score(
     source,
     evaluationTime: '2026-07-30T12:00:00.000Z',
   });
+}
+
+function candidateTracks(): readonly SearchTrack[] {
+  return [
+    {
+      ...track,
+      id: 'data',
+      targetTitles: ['Data Scientist', 'ML Engineer'],
+      roleFamilies: ['data-science', 'machine-learning-ai'],
+      requiredEvidence: ['machine learning'],
+      includeKeywords: ['machine learning'],
+    },
+    {
+      ...track,
+      id: 'devrel',
+      targetTitles: ['Developer Advocate'],
+      roleFamilies: ['developer-relations'],
+      requiredEvidence: ['developer relations'],
+      includeKeywords: ['technical content'],
+    },
+    {
+      ...track,
+      id: 'sales',
+      targetTitles: ['Account Executive'],
+      roleFamilies: ['sales'],
+      requiredEvidence: ['enterprise sales'],
+      includeKeywords: ['enterprise sales'],
+    },
+  ];
+}
+
+function candidateFor(
+  title: string,
+  family: string,
+  excludedFamilies: readonly string[],
+): CandidateProfile {
+  return {
+    ...candidate,
+    targetRoles: {
+      primaryTitles: [title],
+      secondaryTitles: [],
+      adjacentTitles: [],
+      exploratoryTitles: [],
+      excludedTitles: [],
+      excludedTitlePhrases: [],
+      roleFamilies: [family],
+      excludedRoleFamilies: excludedFamilies,
+      titleAliases: [],
+    },
+  };
+}
+
+function evaluateCandidate(
+  candidateJob: EnrichedNormalizedJob,
+  profile: CandidateProfile,
+  tracks: readonly SearchTrack[],
+) {
+  return evaluateTracks({
+    job: candidateJob,
+    candidate: profile,
+    tracks,
+    search: { ...search, tracks },
+    scoring,
+    source: { type: 'greenhouse', tags: [] },
+    evaluationTime: '2026-07-30T12:00:00.000Z',
+  });
+}
+
+function rankPool(
+  pool: readonly EnrichedNormalizedJob[],
+  profile: CandidateProfile,
+  tracks: readonly SearchTrack[],
+) {
+  return pool
+    .map((candidateJob) => ({
+      jobId: candidateJob.id,
+      score: evaluateCandidate(candidateJob, profile, tracks).score?.totalScore,
+    }))
+    .filter(
+      (item): item is { jobId: string; score: number } =>
+        item.score !== undefined,
+    )
+    .sort(
+      (left, right) =>
+        right.score - left.score || left.jobId.localeCompare(right.jobId),
+    );
 }
 
 function component(result: ReturnType<typeof score>, key: string) {

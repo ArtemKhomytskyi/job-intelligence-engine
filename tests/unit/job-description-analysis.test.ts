@@ -216,6 +216,73 @@ describe('layered deterministic job description analysis', () => {
     expect(analysis.benefits).toHaveLength(2);
   });
 
+  it('maps explicit section-aware capabilities with their provenance', () => {
+    const analysis = analyzeJobDescription(`What you'll do at Figma
+- Build community building programs with the Figma API.
+We'd love to hear from you if you have
+- 5+ years technical front-end knowledge and production-quality code.
+- Strong written and verbal communication and technical content experience.
+- Knowledge of product-development workflows.
+Preferred Qualifications
+- Experience with design systems and (Figma) plugins.`);
+
+    expect(
+      analysis.technologyRequirements.map((fact) => ({
+        name: fact.canonicalName,
+        requirement: fact.requirement,
+        source: fact.extraction?.source,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'Frontend Development',
+          requirement: 'REQUIRED',
+          source: "We'd love to hear from you if you have",
+        },
+        {
+          name: 'Production-quality Code',
+          requirement: 'REQUIRED',
+          source: "We'd love to hear from you if you have",
+        },
+        {
+          name: 'Written and Verbal Communication',
+          requirement: 'REQUIRED',
+          source: "We'd love to hear from you if you have",
+        },
+        {
+          name: 'Technical Content',
+          requirement: 'REQUIRED',
+          source: "We'd love to hear from you if you have",
+        },
+        {
+          name: 'Product Development Workflows',
+          requirement: 'REQUIRED',
+          source: "We'd love to hear from you if you have",
+        },
+        {
+          name: 'Design Systems',
+          requirement: 'PREFERRED',
+          source: 'Preferred Qualifications',
+        },
+        {
+          name: 'Figma Plugins',
+          requirement: 'PREFERRED',
+          source: 'Preferred Qualifications',
+        },
+        {
+          name: 'Figma API',
+          requirement: 'UNKNOWN',
+          source: "What you'll do at Figma",
+        },
+        {
+          name: 'Community Building',
+          requirement: 'UNKNOWN',
+          source: "What you'll do at Figma",
+        },
+      ]),
+    );
+  });
+
   it('merges structured facts ahead of prose and preserves provenance', () => {
     const analysis = analyzeJobDescription(
       'Requirements\nReact and TypeScript are required.\nReact is required.',

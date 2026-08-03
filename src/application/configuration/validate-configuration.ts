@@ -22,8 +22,9 @@ export interface ValidateConfigurationOptions {
 export function validateConfiguration(
   bundle: ConfigurationBundle,
   options: ValidateConfigurationOptions = {},
-): void {
+): readonly ConfigurationIssue[] {
   const issues: ConfigurationIssue[] = [];
+  const warnings: ConfigurationIssue[] = [];
   const mode = options.mode ?? 'runtime';
 
   validateSafeId(bundle.candidate.id, 'profile', 'candidate.id', issues);
@@ -32,10 +33,159 @@ export function validateConfiguration(
   validateWeights(bundle, issues);
   validateScoringSettings(bundle, issues);
   validatePreferences(bundle, issues);
+  validateSemanticConsistency(bundle, issues, warnings);
 
   if (issues.length > 0) {
     throw new ConfigurationError(issues);
   }
+  return warnings;
+}
+
+function validateSemanticConsistency(
+  bundle: ConfigurationBundle,
+  issues: ConfigurationIssue[],
+  warnings: ConfigurationIssue[],
+): void {
+  const targetRoles = bundle.candidate.targetRoles;
+  if (targetRoles !== undefined) {
+    const excluded = new Set(
+      targetRoles.excludedTitles.map(normalizedConfigurationValue),
+    );
+    for (const [field, titles] of [
+      ['primaryTitles', targetRoles.primaryTitles],
+      ['secondaryTitles', targetRoles.secondaryTitles],
+      ['adjacentTitles', targetRoles.adjacentTitles],
+      ['exploratoryTitles', targetRoles.exploratoryTitles],
+    ] as const)
+      for (const [index, title] of titles.entries())
+        if (excluded.has(normalizedConfigurationValue(title)))
+          issues.push({
+            code: 'CONFIG_SEMANTIC_CONFLICT',
+            section: 'profile',
+            fieldPath: `candidate.targetRoles.${field}[${index}]`,
+            relatedFieldPath: 'candidate.targetRoles.excludedTitles',
+            conflictingValue: title,
+            message: `Title "${title}" is both preferred and excluded. Remove it from one list.`,
+          });
+    const excludedFamilies = new Set(targetRoles.excludedRoleFamilies);
+    for (const [index, family] of targetRoles.roleFamilies.entries())
+      if (excludedFamilies.has(family))
+        issues.push({
+          code: 'CONFIG_SEMANTIC_CONFLICT',
+          section: 'profile',
+          fieldPath: `candidate.targetRoles.roleFamilies[${index}]`,
+          relatedFieldPath: 'candidate.targetRoles.excludedRoleFamilies',
+          conflictingValue: family,
+          message: `Role family "${family}" is both targeted and excluded. Remove it from one list.`,
+        });
+  }
+  for (const [trackIndex, track] of bundle.search.tracks.entries()) {
+    const excluded = new Set(
+      (track.excludedSkills ?? []).map(normalizedConfigurationValue),
+    );
+    for (const [skillIndex, skill] of (track.requiredSkills ?? []).entries())
+      if (excluded.has(normalizedConfigurationValue(skill)))
+        issues.push({
+          code: 'CONFIG_SEMANTIC_CONFLICT',
+          section: 'search',
+          fieldPath: `tracks[${trackIndex}].requiredSkills[${skillIndex}]`,
+          relatedFieldPath: `tracks[${trackIndex}].excludedSkills`,
+          conflictingValue: skill,
+          message: `Track skill "${skill}" is both required and excluded.`,
+        });
+    if (
+      track.minimumScore !== undefined &&
+      track.minimumScore < bundle.search.preferences.minimumAcceptableScore
+    )
+      warnings.push({
+        code: 'CONFIG_SEMANTIC_WARNING',
+        severity: 'WARNING',
+        section: 'search',
+        fieldPath: `tracks[${trackIndex}].minimumScore`,
+        relatedFieldPath: 'preferences.minimumAcceptableScore',
+        conflictingValue: track.minimumScore,
+        message: `Track minimum ${track.minimumScore} is below the global minimum ${bundle.search.preferences.minimumAcceptableScore}; the global minimum remains effective.`,
+      });
+  }
+  const total = bundle.candidate.totalYearsExperience;
+  const maximum =
+    bundle.search.preferences.hardFilters.maximumRequiredExperienceYears;
+  if (
+    total !== undefined &&
+    maximum < total &&
+    bundle.search.preferences.hardFilters
+      .maximumRequiredExperienceYearsIntentional !== true
+  )
+    issues.push({
+      code: 'CONFIG_SEMANTIC_CONFLICT',
+      section: 'search',
+      fieldPath: 'preferences.hardFilters.maximumRequiredExperienceYears',
+      relatedFieldPath: 'candidate.totalYearsExperience',
+      conflictingValue: maximum,
+      message: `Maximum job requirement ${maximum} is below the candidate's ${total} total years. Raise it or set maximumRequiredExperienceYearsIntentional: true with an intentional search-scope rationale.`,
+    });
+  const maximumTarget = bundle.candidate.maximumTargetSeniority;
+  const candidateMaximumIndex =
+    maximumTarget === undefined
+      ? undefined
+      : Math.min(
+          seniorityIndex(maximumTarget) +
+            (bundle.candidate.allowSeniorityStretch === true ? 1 : 0),
+          seniorityIndex('executive'),
+        );
+  if (
+    candidateMaximumIndex !== undefined &&
+    seniorityIndex(bundle.search.preferences.hardFilters.maximumSeniority) <
+      candidateMaximumIndex
+  )
+    issues.push({
+      code: 'CONFIG_SEMANTIC_CONFLICT',
+      section: 'search',
+      fieldPath: 'preferences.hardFilters.maximumSeniority',
+      relatedFieldPath: 'candidate.maximumTargetSeniority',
+      conflictingValue: bundle.search.preferences.hardFilters.maximumSeniority,
+      message: `Hard-filter maximum seniority prevents the candidate target${bundle.candidate.allowSeniorityStretch === true ? ' and configured one-level stretch' : ''} above ${maximumTarget}. Align the two fields.`,
+    });
+  const enabledSources = bundle.sources.filter((source) => source.enabled);
+  if (enabledSources.length === 0) return;
+  for (const track of bundle.search.tracks.filter((item) => item.enabled)) {
+    const available = enabledSources.some(
+      (source) =>
+        source.trackPolicy !== 'strict' ||
+        source.trackIds.length === 0 ||
+        source.trackIds.includes(track.id),
+    );
+    if (!available)
+      warnings.push({
+        code: 'CONFIG_SEMANTIC_WARNING',
+        severity: 'WARNING',
+        section: 'sources',
+        fieldPath: 'sources.trackIds',
+        relatedFieldPath: `search.tracks.${track.id}`,
+        conflictingValue: track.id,
+        message: `Enabled track "${track.id}" is unavailable to every enabled strict source. Add it to a source, use preferred/unrestricted policy, or disable the track.`,
+      });
+  }
+}
+
+function normalizedConfigurationValue(value: string): string {
+  return value.normalize('NFKC').toLocaleLowerCase('en-US').trim();
+}
+
+function seniorityIndex(value: import('../../domain/index.js').SeniorityLevel) {
+  return [
+    'intern',
+    'entry',
+    'mid',
+    'senior',
+    'staff',
+    'principal',
+    'lead',
+    'manager',
+    'director',
+    'vp',
+    'executive',
+  ].indexOf(value);
 }
 
 function validateScoringSettings(

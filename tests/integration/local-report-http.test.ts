@@ -90,6 +90,10 @@ describe('local report HTTP interface', () => {
     expect(html).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
     expect(html).not.toContain('<script>alert("x")</script>');
     expect(html).toContain('https://apply.example.test/role');
+    expect(html).toContain(
+      'No negative concerns recorded. Missing evidence is listed separately.',
+    );
+    expect(html).toContain('<li>salary</li>');
   });
 
   it('does not render an unsafe apply URL from an invalid adapter', async () => {
@@ -345,6 +349,10 @@ describe('local report HTTP interface', () => {
     expect(await (await fetch(`${baseUrl}/runs/latest`)).text()).toContain(
       'Latest pipeline state',
     );
+    const diagnostics = await (await fetch(`${baseUrl}/runs/latest`)).text();
+    expect(diagnostics).toContain('Recommendation diagnostics');
+    expect(diagnostics).toContain('Candidate fit');
+    expect(diagnostics).toContain('Score below configured threshold');
     expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
     expect(
       (await fetch(`${baseUrl}/assets/app.css`)).headers.get('content-type'),
@@ -479,6 +487,22 @@ function report(): RecommendationReport {
         evaluationTime: '2026-08-02T10:00:00.000Z',
         selected: 1,
         requested: 20,
+        evaluated: 2,
+        outcomeCounts: { SELECTED: 1, BELOW_MINIMUM_SCORE: 1 },
+        diagnostics: [
+          {
+            jobId: 'job-2',
+            title: 'Near Match Engineer',
+            company: 'Synthetic Labs',
+            outcome: 'BELOW_MINIMUM_SCORE',
+            exclusionReason: 'Score below configured threshold',
+            threshold: 70,
+            selectedTrackId: 'data',
+            finalScore: 64,
+            candidateFitScore: 61,
+            opportunityScore: 76,
+          },
+        ],
       },
     },
   };

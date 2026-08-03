@@ -7,6 +7,8 @@ export const CONFIG_ERROR_CODES = [
   'CONFIG_DUPLICATE_ID',
   'CONFIG_WEIGHT_TOTAL_INVALID',
   'CONFIG_RANGE_INVALID',
+  'CONFIG_SEMANTIC_CONFLICT',
+  'CONFIG_SEMANTIC_WARNING',
   'PLACEHOLDER_SOURCE_NOT_ALLOWED',
   'BROWSER_FALLBACK_EXTERNAL_UNSAFE',
   'CONFIG_INTERNAL_ERROR',
@@ -21,6 +23,9 @@ export interface ConfigurationIssue {
   readonly message: string;
   readonly filePath?: string;
   readonly fieldPath?: string;
+  readonly severity?: 'ERROR' | 'WARNING';
+  readonly relatedFieldPath?: string;
+  readonly conflictingValue?: string | number | boolean;
 }
 
 export class ConfigurationError extends Error {

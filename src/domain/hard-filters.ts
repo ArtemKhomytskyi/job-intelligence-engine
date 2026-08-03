@@ -6,6 +6,11 @@ import type {
   HardFilterResult,
 } from './job-processing.js';
 import type { HardFilterConfiguration } from './search-configuration.js';
+import {
+  analyzeRoleTitle,
+  exactTitleMatches,
+  phraseMatches,
+} from './role-matching.js';
 
 const EU = new Set([
   'AT',
@@ -85,17 +90,64 @@ export function evaluateHardFilters(input: {
     ...countryReasons(input.job, input.configuration),
     ...authorizationReasons(input.job, input.candidate),
     ...languageReasons(input.job, input.candidate, input.configuration),
-    ...seniorityReasons(input.job, input.configuration),
+    ...seniorityReasons(input.job, input.candidate, input.configuration),
     ...experienceReasons(input.job, input.configuration),
     ...phdReasons(input.job, input.candidate, input.configuration),
-    ...companyReasons(input.job, input.configuration),
-    ...industryReasons(input.job, input.configuration),
+    ...companyReasons(input.job, input.candidate, input.configuration),
+    ...industryReasons(input.job, input.candidate, input.configuration),
     ...titleReasons(input.job, input.configuration),
+    ...candidateTitleReasons(input.job, input.candidate),
     ...expiryReasons(input.job, input.processingTime),
   ];
   return reasons.length === 0
     ? { decision: 'ELIGIBLE', reasons: [] }
     : { decision: 'REJECTED', reasons };
+}
+
+function candidateTitleReasons(
+  job: EnrichedNormalizedJob,
+  candidate: CandidateProfile,
+): readonly HardFilterReason[] {
+  const targets = candidate.targetRoles;
+  if (targets === undefined) return [];
+  const exact = targets.excludedTitles.find((title) =>
+    exactTitleMatches(job.cleanedTitle, title, targets.titleAliases),
+  );
+  if (exact !== undefined)
+    return [
+      reason(
+        'EXCLUDED_TITLE_EXACT',
+        'candidate-title',
+        `Candidate profile excludes exact title: ${exact}.`,
+        { title: job.cleanedTitle, excludedTitle: exact },
+      ),
+    ];
+  const phrase = targets.excludedTitlePhrases.find((item) =>
+    phraseMatches(job.cleanedTitle, item),
+  );
+  if (phrase !== undefined)
+    return [
+      reason(
+        'EXCLUDED_TITLE_PHRASE',
+        'candidate-title',
+        `Candidate profile excludes title phrase: ${phrase}.`,
+        { title: job.cleanedTitle, excludedPhrase: phrase },
+      ),
+    ];
+  const family = analyzeRoleTitle(
+    job.cleanedTitle,
+    targets.titleAliases,
+  ).families.find((item) => targets.excludedRoleFamilies.includes(item));
+  return family === undefined
+    ? []
+    : [
+        reason(
+          'EXCLUDED_ROLE_FAMILY',
+          'candidate-role-family',
+          `Candidate profile excludes role family: ${family}.`,
+          { title: job.cleanedTitle, roleFamily: family },
+        ),
+      ];
 }
 
 function countryReasons(
@@ -259,20 +311,32 @@ function languageReasons(
 
 function seniorityReasons(
   job: EnrichedNormalizedJob,
+  candidate: CandidateProfile,
   config: HardFilterConfiguration,
 ): readonly HardFilterReason[] {
+  const configuredMaximum = SENIORITY_ORDER.indexOf(config.maximumSeniority);
+  const candidateMaximum = candidate.maximumTargetSeniority;
+  const candidateIndex =
+    candidateMaximum === undefined
+      ? configuredMaximum
+      : Math.min(
+          SENIORITY_ORDER.length - 1,
+          SENIORITY_ORDER.indexOf(candidateMaximum) +
+            (candidate.allowSeniorityStretch === true ? 1 : 0),
+        );
+  const maximumIndex = Math.min(configuredMaximum, candidateIndex);
   if (
     job.seniority === undefined ||
-    SENIORITY_ORDER.indexOf(job.seniority) <=
-      SENIORITY_ORDER.indexOf(config.maximumSeniority)
+    SENIORITY_ORDER.indexOf(job.seniority) <= maximumIndex
   )
     return [];
+  const maximum = SENIORITY_ORDER[maximumIndex] ?? config.maximumSeniority;
   return [
     reason(
       'SENIORITY_EXCEEDS_MAXIMUM',
       'seniority',
-      `Detected seniority ${job.seniority} exceeds maximum ${config.maximumSeniority}.`,
-      { detected: job.seniority, maximum: config.maximumSeniority },
+      `Detected seniority ${job.seniority} exceeds effective candidate maximum ${maximum}.`,
+      { detected: job.seniority, maximum },
     ),
   ];
 }
@@ -331,9 +395,13 @@ function phdReasons(
 
 function companyReasons(
   job: EnrichedNormalizedJob,
+  candidate: CandidateProfile,
   config: HardFilterConfiguration,
 ): readonly HardFilterReason[] {
-  const match = config.excludedCompanies.find(
+  const match = [
+    ...config.excludedCompanies,
+    ...(candidate.careerPreferences?.excludedCompanies ?? []),
+  ].find(
     (item) =>
       companyKey(item, config.companyLegalSuffixes) ===
       job.companyComparisonKey,
@@ -352,6 +420,7 @@ function companyReasons(
 
 function industryReasons(
   job: EnrichedNormalizedJob,
+  candidate: CandidateProfile,
   config: HardFilterConfiguration,
 ): readonly HardFilterReason[] {
   if (job.industry === undefined)
@@ -365,9 +434,10 @@ function industryReasons(
           ),
         ]
       : [];
-  const match = config.excludedIndustries.find(
-    (item) => comparisonKey(item) === comparisonKey(job.industry ?? ''),
-  );
+  const match = [
+    ...config.excludedIndustries,
+    ...(candidate.careerPreferences?.excludedIndustries ?? []),
+  ].find((item) => comparisonKey(item) === comparisonKey(job.industry ?? ''));
   return match === undefined
     ? []
     : [

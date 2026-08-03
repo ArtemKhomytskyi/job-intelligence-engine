@@ -52,6 +52,20 @@ export function formatConfigurationErrors(
   return [heading, ...lines].join('\n');
 }
 
+export function formatConfigurationWarnings(
+  issues: readonly ConfigurationIssue[],
+  asJson: boolean,
+): string {
+  if (asJson) return JSON.stringify({ warnings: issues }, undefined, 2);
+  return [
+    `Configuration warnings (${issues.length})`,
+    ...issues.map(
+      (issue) =>
+        `- [${issue.code}] ${issue.section}${issue.fieldPath === undefined ? '' : ` Â· ${issue.fieldPath}`}: ${issue.message}`,
+    ),
+  ].join('\n');
+}
+
 export function formatHelp(): string {
   return [
     'Usage: npm run cli -- <command> [options]',

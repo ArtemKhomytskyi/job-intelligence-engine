@@ -15,10 +15,25 @@ export interface SearchTrack {
   readonly displayName: string;
   readonly enabled: boolean;
   readonly targetTitles: readonly string[];
+  readonly adjacentTitles?: readonly string[];
+  readonly excludedTitles?: readonly string[];
+  readonly roleFamilies?: readonly string[];
+  readonly excludedRoleFamilies?: readonly string[];
   readonly includeKeywords: readonly string[];
   readonly excludeKeywords: readonly string[];
+  readonly requiredEvidence?: readonly string[];
+  readonly preferredEvidence?: readonly string[];
+  readonly negativeEvidence?: readonly string[];
+  readonly requiredSkills?: readonly string[];
   readonly preferredSkills: readonly string[];
+  readonly optionalSkills?: readonly string[];
+  readonly excludedSkills?: readonly string[];
   readonly preferredIndustries: readonly string[];
+  readonly roleSpecificExperienceYears?: number;
+  readonly acceptableSeniorities?: readonly SeniorityLevel[];
+  readonly preferredCountries?: readonly string[];
+  readonly preferredRemotePolicies?: readonly RemotePolicy[];
+  readonly minimumScore?: Percentage;
   readonly priority: number;
   readonly recommendationQuota?: number;
 }
@@ -51,6 +66,7 @@ export interface HardFilterConfiguration {
   readonly unknownCandidateLanguageLevelPolicy: UnknownCandidateLanguageLevelPolicy;
   readonly maximumSeniority: SeniorityLevel;
   readonly maximumRequiredExperienceYears: number;
+  readonly maximumRequiredExperienceYearsIntentional?: boolean;
   readonly allowMandatoryPhd: boolean;
   readonly excludedCompanies: readonly string[];
   readonly excludedIndustries: readonly string[];

@@ -10,6 +10,7 @@ export interface ConfigurationBundle {
   readonly search: SearchConfiguration;
   readonly scoring: ScoringConfig;
   readonly sources: readonly SourceConfig[];
+  readonly warnings?: readonly import('./errors.js').ConfigurationIssue[];
 }
 
 export interface ConfigurationLoadOptions {

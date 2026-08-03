@@ -1,4 +1,8 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type {
+  Prisma,
+  PrismaClient,
+  RecommendationEvaluation,
+} from '@prisma/client';
 
 import {
   type LatestPipelineState,
@@ -65,6 +69,8 @@ type ReportDetailsRecord = Prisma.RecommendationGetPayload<{
     };
   };
 }>;
+
+type ReportEvaluationRecord = RecommendationEvaluation;
 
 export class PrismaRecommendationReportRepository implements RecommendationReportRepository {
   public constructor(private readonly client: PrismaClient) {}
@@ -135,7 +141,19 @@ export class PrismaRecommendationReportRepository implements RecommendationRepor
         },
       },
     });
-    return record === null ? undefined : mapDetails(record);
+    if (record === null) return undefined;
+    const evaluation =
+      record.batch === null
+        ? null
+        : await this.client.recommendationEvaluation.findUnique({
+            where: {
+              batchId_jobId: {
+                batchId: record.batch.id,
+                jobId: record.jobId,
+              },
+            },
+          });
+    return mapDetails(record, evaluation);
   }
 
   public async updateApplicationStatus(
@@ -172,6 +190,13 @@ export class PrismaRecommendationReportRepository implements RecommendationRepor
       }),
       this.client.recommendationBatch.findFirst({
         orderBy: [{ evaluationTime: 'desc' }, { id: 'desc' }],
+        include: {
+          evaluations: {
+            orderBy: [{ totalScore: 'desc' }, { jobId: 'asc' }],
+            include: { job: { select: { title: true, company: true } } },
+          },
+          _count: { select: { evaluations: true } },
+        },
       }),
     ]);
     return {
@@ -224,6 +249,42 @@ export class PrismaRecommendationReportRepository implements RecommendationRepor
               evaluationTime: recommendations.evaluationTime.toISOString(),
               selected: recommendations.selectedCount,
               requested: recommendations.requestedLimit,
+              evaluated: recommendations._count.evaluations,
+              outcomeCounts: recommendations.evaluations.reduce<
+                Record<string, number>
+              >((counts, evaluation) => {
+                counts[evaluation.outcome] =
+                  (counts[evaluation.outcome] ?? 0) + 1;
+                return counts;
+              }, {}),
+              diagnostics: recommendations.evaluations
+                .slice(0, 100)
+                .map((evaluation) => ({
+                  jobId: evaluation.jobId,
+                  title: evaluation.job.title,
+                  company: evaluation.job.company,
+                  outcome: evaluation.outcome,
+                  ...(evaluation.exclusionReason === null
+                    ? {}
+                    : { exclusionReason: evaluation.exclusionReason }),
+                  threshold: Number(evaluation.threshold),
+                  ...(evaluation.selectedTrackId === null
+                    ? {}
+                    : { selectedTrackId: evaluation.selectedTrackId }),
+                  ...(evaluation.totalScore === null
+                    ? {}
+                    : { finalScore: Number(evaluation.totalScore) }),
+                  ...(evaluation.candidateFitScore === null
+                    ? {}
+                    : {
+                        candidateFitScore: Number(evaluation.candidateFitScore),
+                      }),
+                  ...(evaluation.opportunityScore === null
+                    ? {}
+                    : {
+                        opportunityScore: Number(evaluation.opportunityScore),
+                      }),
+                })),
             },
           }),
     };
@@ -275,9 +336,16 @@ function mapBatch(record: ReportBatchRecord): RecommendationBatchView {
   };
 }
 
-function mapDetails(record: ReportDetailsRecord): RecommendationDetails {
+function mapDetails(
+  record: ReportDetailsRecord,
+  evaluation: ReportEvaluationRecord | null,
+): RecommendationDetails {
   const normalized = parseNormalizedPayload(record.job.normalizedPayload);
   const score = mapRecommendationScore(record.score);
+  const remotePolicy =
+    normalized?.location.remotePolicy ?? record.job.remotePolicy ?? undefined;
+  const employmentType =
+    normalized?.employmentType ?? record.job.employmentType ?? undefined;
   return {
     recommendationId: record.id,
     batchId: record.batchId ?? record.recommendationBatch,
@@ -289,12 +357,8 @@ function mapDetails(record: ReportDetailsRecord): RecommendationDetails {
     ...(normalized?.location.originalText === undefined
       ? locationFields(record.job.locations)
       : { location: normalized.location.originalText }),
-    ...(record.job.remotePolicy === null
-      ? {}
-      : { remotePolicy: record.job.remotePolicy }),
-    ...(record.job.employmentType === null
-      ? {}
-      : { employmentType: record.job.employmentType }),
+    ...(remotePolicy === undefined ? {} : { remotePolicy }),
+    ...(employmentType === undefined ? {} : { employmentType }),
     ...salaryFields(record.job),
     experienceRequirements:
       normalized?.experienceRequirements.map(formatRequirement) ?? [],
@@ -322,7 +386,19 @@ function mapDetails(record: ReportDetailsRecord): RecommendationDetails {
       : { description: record.job.description }),
     selectedTrackId: record.searchTrackId,
     finalScore: score.totalScore,
+    ...(evaluation?.candidateFitScore === null || evaluation === null
+      ? {}
+      : { candidateFitScore: Number(evaluation.candidateFitScore) }),
     opportunityScore: score.opportunityScore,
+    ...(evaluation === null
+      ? {}
+      : {
+          threshold: Number(evaluation.threshold),
+          evaluationOutcome: evaluation.outcome,
+          alternativeTrackEvaluations: formatTrackEvaluations(
+            evaluation.trackEvaluations,
+          ),
+        }),
     completeness: score.completeness,
     components: score.components.map((component) => ({
       key: component.key,
@@ -348,6 +424,36 @@ function mapDetails(record: ReportDetailsRecord): RecommendationDetails {
       ? {}
       : { normalizedAt: record.job.normalizedAt.toISOString() }),
   };
+}
+
+function formatTrackEvaluations(value: unknown): readonly string[] {
+  const parsed: unknown = fromPrismaJson(value);
+  if (!isUnknownArray(parsed)) return [];
+  return parsed.flatMap((item): readonly string[] => {
+    if (!isUnknownRecord(item)) return [];
+    const trackId = item['trackId'];
+    const finalScore = item['finalScore'];
+    const valid = item['validMatch'];
+    if (
+      typeof trackId !== 'string' ||
+      typeof finalScore !== 'number' ||
+      typeof valid !== 'boolean'
+    )
+      return [];
+    return [
+      `${trackId}: ${finalScore.toFixed(2)} (${valid ? 'valid' : 'no match'})`,
+    ];
+  });
+}
+
+function isUnknownArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value);
+}
+
+function isUnknownRecord(
+  value: unknown,
+): value is Readonly<Record<string, unknown>> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function mapStatusHistory(

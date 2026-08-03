@@ -1,6 +1,6 @@
 # Configuration
 
-## Chunk 7 runtime settings
+## Runtime settings
 
 Chunk 7 does not add a fifth configuration file. Candidate/search/scoring/source
 configuration remains authoritative and is validated before every full run.
@@ -69,13 +69,34 @@ Use `--config-dir <path>` for another directory, `--json` for structured output,
 
 Do not store contact details, CV contents, credentials, passport data, street addresses, or other unnecessary personal information.
 
+Candidate Profile V2 keeps legacy fields readable and adds explicit groups for
+`experience`, `capabilities`, `targetRoles`, `careerPreferences`, and
+`evidencePreferences`. Total experience is career-wide; each
+`experience.roleFamilies` entry is the experience relevant to one role family.
+The scorer never treats the total as experience in every track when role-family
+experience is configured. Target roles separate primary, secondary, adjacent,
+and exploratory titles and support explicit aliases, excluded titles/phrases,
+and role-family exclusions. Capabilities separate programming languages,
+technical skills, domain skills, tools/platforms, and certifications. Evidence
+preferences provide strong/moderate positive and negative phrases plus
+mandatory and prohibited concepts. Matching is boundary-aware and deterministic.
+
 ## Search fields
 
-Each track defines its ID, name, enabled state, target titles, keyword lists, preferred skills and industries, priority, and optional positive recommendation quota. Enabled quotas together cannot exceed `dailyRecommendationLimit`.
+Each track defines its ID, name, enabled state, target/adjacent/excluded titles,
+role families, required/preferred/negative evidence, required/preferred/optional
+and excluded skills, relevant experience, acceptable seniorities, geography,
+track minimum score, priority, and optional positive recommendation quota.
+Enabled quotas together cannot exceed `dailyRecommendationLimit`.
 
 Preferences define countries, remote policies, relocation, company sizes, employment types, exclusions, experience and optional salary ranges, minimum score, the daily limit, and per-company maximum. Minimum range values cannot exceed maximums. Relocation countries require `willingToRelocate: true`.
 
 `preferences.hardFilters` configures allowed countries/groups, unknown location/industry/language-level policies, maximum seniority and mandatory experience, mandatory-PhD policy, company/industry/title exclusions, removable URL tracking parameters, and legal company suffixes. Exclusion phrases are literal values, never regular expressions. Older private search files without this object receive permissive defaults; copy the explicit example block to customize processing.
+
+`maximumRequiredExperienceYears` is a search-scope ceiling on a job's mandatory
+minimum, not the candidate's experience. If it is below total candidate
+experience, set `maximumRequiredExperienceYearsIntentional: true` only when the
+narrower search scope is deliberate; otherwise validation blocks the conflict.
 
 ## Scoring fields
 
@@ -86,6 +107,11 @@ The twelve weight keys shown in `scoring.example.yaml` are required; unknown key
 ## Source fields
 
 Every source has a safe unique ID, discriminator, enabled state, display name, tags, and track IDs. Empty `trackIds` means the source is not restricted to specific tracks.
+
+`trackPolicy` defaults to `strict` for backward compatibility. `strict` evaluates
+only listed tracks, while an empty list permits all. `preferred` treats the list
+as a hint and evaluates all enabled tracks; `unrestricted` also evaluates all.
+No policy assigns a listed track unless its own title/role evidence passes.
 
 Tracked source templates are intentionally disabled. Replace their values
 before setting `enabled: true`. Runtime validation rejects enabled IDs beginning
@@ -132,6 +158,12 @@ Create and persist a recommendation batch with `npm run cli -- recommend --limit
 ## Errors
 
 Validation reads every file and reports multiple useful issues where practical. Each issue contains a stable code, section, message, and available file or field path. Normal CLI output does not include stack traces, parsed configuration, raw payloads, or retained error causes.
+
+Cross-file validation blocks contradictory preferred/excluded titles or role
+families, required/excluded track skills, accidental experience ceilings,
+seniority conflicts, disabled track sets, and impossible quotas. Non-blocking
+warnings identify unavailable tracks and track minima shadowed by the global
+minimum. CLI warnings include the related field and an actionable correction.
 
 Successful example output is:
 

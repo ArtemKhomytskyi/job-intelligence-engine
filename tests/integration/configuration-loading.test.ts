@@ -7,6 +7,7 @@ import {
   ConfigurationError,
   loadConfiguration,
   summarizeConfiguration,
+  validateConfiguration,
 } from '../../src/application/index.js';
 import {
   FileSystemConfigReader,
@@ -44,6 +45,57 @@ describe('configuration loading', () => {
     await expect(loadFrom('config', true)).resolves.toMatchObject({
       candidate: { displayName: 'Example Candidate' },
     });
+  });
+
+  it('reports actionable cross-file conflicts and non-blocking source warnings', async () => {
+    const bundle = await loadFrom(directory);
+    const conflicting = {
+      ...bundle,
+      candidate: {
+        ...bundle.candidate,
+        targetRoles: {
+          ...bundle.candidate.targetRoles!,
+          primaryTitles: ['Account Executive'],
+        },
+      },
+    };
+    let conflict: unknown;
+    try {
+      validateConfiguration(conflicting);
+    } catch (error: unknown) {
+      conflict = error;
+    }
+    expect(conflict).toBeInstanceOf(ConfigurationError);
+    if (!(conflict instanceof ConfigurationError))
+      throw new Error('Expected a configuration conflict.');
+    expect(conflict.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'CONFIG_SEMANTIC_CONFLICT',
+          fieldPath: 'candidate.targetRoles.primaryTitles[0]',
+          relatedFieldPath: 'candidate.targetRoles.excludedTitles',
+          conflictingValue: 'Account Executive',
+        }),
+      ]),
+    );
+
+    const strict = {
+      ...bundle,
+      sources: bundle.sources.map((source) => ({
+        ...source,
+        trackPolicy: 'strict' as const,
+        trackIds: ['data-science'],
+      })),
+    };
+    expect(validateConfiguration(strict)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'CONFIG_SEMANTIC_WARNING',
+          severity: 'WARNING',
+          relatedFieldPath: 'search.tracks.quant',
+        }),
+      ]),
+    );
   });
 
   it('rejects duplicate aliases and impossible freshness settings', async () => {

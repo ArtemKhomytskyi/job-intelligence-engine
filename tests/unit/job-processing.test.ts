@@ -250,6 +250,8 @@ describe('processing normalization', () => {
     ['Montréal, QC', 'CA', 'Quebec'],
     ['Canada', 'CA', undefined],
     ['CA', 'CA', undefined],
+    ['Tokyo, Japan', 'JP', undefined],
+    ['London, England', 'GB', undefined],
   ] as const)(
     'normalizes North American location %s',
     (locationText, countryCode, region) => {

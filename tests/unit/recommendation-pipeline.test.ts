@@ -49,7 +49,7 @@ describe('recommendation application pipeline', () => {
     ).rejects.toThrow('synthetic persistence failure');
   });
 
-  it('honors source track restrictions when choosing relevant tracks', async () => {
+  it('does not let a strict source restriction manufacture an unrelated track match', async () => {
     const repository = new MemoryRecommendationRepository([
       record('restricted', 'NEW'),
     ]);
@@ -66,7 +66,32 @@ describe('recommendation application pipeline', () => {
       })),
     });
 
-    expect(result.items[0]?.score.selectedTrackId).toBe('other');
+    expect(result.items).toEqual([]);
+    expect(repository.writes[0]?.evaluations[0]).toMatchObject({
+      outcome: 'NO_VALID_TRACK_MATCH',
+      exclusionReason: 'NO_VALID_TRACK_MATCH',
+    });
+  });
+
+  it('treats preferred source tracks as hints and evaluates every enabled track', async () => {
+    const repository = new MemoryRecommendationRepository([
+      record('preferred', 'NEW'),
+    ]);
+    const preferredInput = input();
+    const result = await new CreateRecommendations(
+      repository,
+      clock,
+      hasher,
+    ).execute({
+      ...preferredInput,
+      sources: preferredInput.sources.map((source) => ({
+        ...source,
+        trackIds: ['other'],
+        trackPolicy: 'preferred' as const,
+      })),
+    });
+
+    expect(result.items[0]?.score.selectedTrackId).toBe('data');
   });
 
   it('rejects invalid limits before repository access', async () => {

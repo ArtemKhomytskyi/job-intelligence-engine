@@ -10,6 +10,7 @@ sources:
     tags: []
     trackIds:
       - data-science
+    trackPolicy: preferred
     settings:
       boardToken: replace-with-real-board-token
       boardUrl: https://boards.greenhouse.io/replace-with-real-board-token
@@ -22,6 +23,7 @@ sources:
     tags: []
     trackIds:
       - data-science
+    trackPolicy: preferred
     settings:
       companySlug: replace-with-real-company-slug
       jobsUrl: https://jobs.lever.co/replace-with-real-company-slug
@@ -34,6 +36,7 @@ sources:
     tags: []
     trackIds:
       - data-science
+    trackPolicy: preferred
     settings:
       url: https://replace-with-real-careers-url.example/jobs
       allowBrowserFallback: false
@@ -46,6 +49,7 @@ sources:
     tags: []
     trackIds:
       - data-science
+    trackPolicy: preferred
     settings:
       url: https://replace-with-real-job-url.example/job
       allowBrowserFallback: false

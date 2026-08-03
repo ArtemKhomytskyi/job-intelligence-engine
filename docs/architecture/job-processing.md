@@ -55,7 +55,16 @@ Possible duplicates are filtered and retained with their own status for a later 
 
 ## Hard filters and reprocessing
 
-Filters always run in documented order and collect every reason: `COUNTRY_NOT_ALLOWED`, `WORK_AUTHORIZATION_NOT_AVAILABLE`, `MISSING_REQUIRED_LANGUAGE`, `SENIORITY_EXCEEDS_MAXIMUM`, `EXPERIENCE_EXCEEDS_MAXIMUM`, `PHD_REQUIRED`, `EXCLUDED_COMPANY`, `EXCLUDED_INDUSTRY`, `EXCLUDED_TITLE_PATTERN`, and `JOB_EXPIRED`. Expiry is inclusive: `expiresAt <= processing time` is expired. Preferred or optional requirements never reject. Unknown location, industry, and candidate language-level behavior follows configuration.
+Filters always run in documented order and collect every reason, including
+geography, authorization, language, effective candidate/global seniority,
+experience ceiling, mandatory PhD, company/industry/title and expiry rules.
+Candidate V2 adds exact title, title phrase and canonical role-family exclusions
+with `EXCLUDED_TITLE_EXACT`, `EXCLUDED_TITLE_PHRASE`, and
+`EXCLUDED_ROLE_FAMILY`. Candidate career-preference company and industry
+exclusions join the existing search exclusions. Expiry is inclusive:
+`expiresAt <= processing time` is expired. Preferred or optional requirements
+never reject. Unknown location, industry, and candidate language-level behavior
+follows configuration.
 
 The idempotency key is job ID, latest revision number, normalization version,
 fingerprint version, filter version, and a SHA-256 fingerprint of relevant

@@ -26,6 +26,10 @@ and immutable status history. Scores are never recalculated by the report.
 - `GET /recommendations/:id` renders complete details and may auto-mark VIEWED.
 - `POST /recommendations/:id/status` explicitly sets VIEWED, APPLIED, or SKIPPED.
 - `GET /runs/latest` renders latest collection, processing, and batch records.
+  Candidate Matching V2 also shows bounded per-job recommendation diagnostics:
+  selected, below threshold, no valid track, or selector excluded; Candidate
+  Fit, Opportunity Quality, final score, threshold, best track, and exact reason.
+  Older batches display a historical-data message instead of inventing values.
   A validated `failure` marker renders a safe summary for the failed manual
   attempt while retaining links to the ordinary persisted-state view.
 - `POST /actions/run` invokes the shared full-pipeline application service.

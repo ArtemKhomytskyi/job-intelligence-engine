@@ -10,12 +10,122 @@ candidate:
       institution: Example Institute of Technology
   professionalExperienceSummary: Experience delivering data products and developer-facing software.
   totalYearsExperience: 5
+  experience:
+    roleFamilies:
+      - roleFamily: data-science
+        years: 3
+      - roleFamily: software-engineering
+        years: 4
+      - roleFamily: developer-relations
+        years: 2
+    managementYears: 0
+    internshipYears: 1
+  currentSeniority: mid
+  maximumTargetSeniority: senior
+  allowSeniorityStretch: true
   skills:
     - name: TypeScript
       yearsOfExperience: 4
     - name: Python
       yearsOfExperience: 5
     - name: Data analysis
+  capabilities:
+    programmingLanguages:
+      - name: TypeScript
+        yearsOfExperience: 4
+      - name: Python
+        yearsOfExperience: 5
+    technicalSkills:
+      - name: Machine learning
+      - name: APIs
+    domainSkills:
+      - name: Developer education
+      - name: Data analysis
+    toolsAndPlatforms:
+      - name: PostgreSQL
+      - name: GitHub
+    certifications: []
+  targetRoles:
+    primaryTitles:
+      - Data Scientist
+      - AI Engineer
+    secondaryTitles:
+      - Machine Learning Engineer
+      - Software Engineer, AI Product
+    adjacentTitles:
+      - Developer Advocate
+      - Technical Community Manager
+    exploratoryTitles: []
+    excludedTitles:
+      - Account Executive
+      - Sales Development Representative
+      - Recruiter
+      - Customer Success Manager
+    excludedTitlePhrases:
+      - Account Executive
+      - Sales Development
+    roleFamilies:
+      - data-science
+      - machine-learning-ai
+      - software-engineering
+      - developer-relations
+    excludedRoleFamilies:
+      - sales
+      - recruiting
+    titleAliases:
+      - canonical: Machine Learning Engineer
+        aliases:
+          - ML Engineer
+      - canonical: Developer Advocate
+        aliases:
+          - Developer Relations Engineer
+  careerPreferences:
+    preferredIndustries:
+      - software
+      - artificial intelligence
+      - developer tools
+    acceptableIndustries:
+      - financial technology
+    excludedIndustries:
+      - gambling
+    preferredCompanyStages:
+      - growth
+      - established
+    preferredCompanySizes:
+      - startup
+      - medium
+      - large
+    preferredCompanies: []
+    excludedCompanies:
+      - Fictional Staffing Example
+    preferredRemotePolicies:
+      - remote
+      - hybrid
+    onsiteTolerance: false
+    preferredCountries:
+      - DE
+      - NL
+      - GB
+    preferredRegions:
+      - Europe
+    needsVisaSponsorship: false
+    minimumSalary: 70000
+    travelTolerancePercent: 20
+  evidencePreferences:
+    strongPositive:
+      - machine learning
+      - developer education
+    moderatePositive:
+      - experimentation
+      - technical content
+    strongNegative:
+      - quota-carrying sales
+      - cold calling
+    moderateNegative:
+      - customer support
+    mandatoryConcepts: []
+    prohibitedConcepts:
+      - commission only
   languages:
     - code: en
       name: English

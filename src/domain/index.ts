@@ -12,6 +12,7 @@ export * from './normalized-job-posting.js';
 export * from './raw-job-posting.js';
 export * from './recommendation.js';
 export * from './recommendation-selector.js';
+export * from './role-matching.js';
 export * from './score-result.js';
 export * from './scoring-config.js';
 export * from './search-configuration.js';

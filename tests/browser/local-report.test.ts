@@ -124,6 +124,23 @@ describe('local recommendation report browser flow', () => {
     expect(await page.locator('main').textContent()).toContain('FAILED');
   });
 
+  it('shows persisted diagnostics for an evaluated non-selected job', async () => {
+    if (browser === undefined) throw new Error('Browser did not start.');
+    const page = await browser.newPage();
+    await page.goto(`${baseUrl}/runs/latest`);
+
+    await page
+      .getByRole('heading', { name: 'Recommendation diagnostics' })
+      .waitFor();
+    expect(await page.locator('main').textContent()).toContain(
+      'No valid track match',
+    );
+    expect(await page.locator('main').textContent()).toContain('Candidate fit');
+    expect(await page.locator('main').textContent()).toContain(
+      'Role evidence did not satisfy any enabled track',
+    );
+  });
+
   it('guides first-run setup without launching the pipeline', async () => {
     if (browser === undefined) throw new Error('Browser did not start.');
     sourceReadiness.hasRealEnabledSource = false;
@@ -231,6 +248,28 @@ class BrowserRuntime implements LocalReportRuntime {
           jobsCollected: 0,
           jobsCreated: 0,
           jobsUpdated: 0,
+        },
+        recommendations: {
+          batchId: '11111111-1111-4111-8111-111111111111',
+          evaluationTime: '2026-08-02T10:00:00.000Z',
+          selected: 1,
+          requested: 20,
+          evaluated: 2,
+          outcomeCounts: { SELECTED: 1, NO_VALID_TRACK_MATCH: 1 },
+          diagnostics: [
+            {
+              jobId: 'job-2',
+              title: 'Account Executive',
+              company: 'Synthetic Labs',
+              outcome: 'NO_VALID_TRACK_MATCH',
+              exclusionReason:
+                'Role evidence did not satisfy any enabled track',
+              threshold: 70,
+              candidateFitScore: 0,
+              opportunityScore: 82,
+              finalScore: 8.2,
+            },
+          ],
         },
       },
     };

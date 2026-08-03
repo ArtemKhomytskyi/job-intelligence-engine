@@ -117,7 +117,11 @@ export interface RecommendationDetails {
   readonly description?: string;
   readonly selectedTrackId: string;
   readonly finalScore: number;
+  readonly candidateFitScore?: number;
   readonly opportunityScore: number;
+  readonly threshold?: number;
+  readonly evaluationOutcome?: string;
+  readonly alternativeTrackEvaluations?: readonly string[];
   readonly completeness: number;
   readonly components: readonly ScoreComponentView[];
   readonly positives: readonly ScoreReason[];
@@ -162,6 +166,22 @@ export interface LatestRecommendationState {
   readonly evaluationTime: string;
   readonly selected: number;
   readonly requested: number;
+  readonly evaluated?: number;
+  readonly outcomeCounts?: Readonly<Record<string, number>>;
+  readonly diagnostics?: readonly RecommendationDiagnosticView[];
+}
+
+export interface RecommendationDiagnosticView {
+  readonly jobId: string;
+  readonly title: string;
+  readonly company: string;
+  readonly outcome: string;
+  readonly exclusionReason?: string;
+  readonly threshold: number;
+  readonly selectedTrackId?: string;
+  readonly finalScore?: number;
+  readonly candidateFitScore?: number;
+  readonly opportunityScore?: number;
 }
 
 export interface LatestPipelineState {

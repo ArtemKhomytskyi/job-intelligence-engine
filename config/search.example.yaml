@@ -6,90 +6,161 @@ tracks:
     targetTitles:
       - Quantitative Researcher
       - Quantitative Developer
+    adjacentTitles: []
+    excludedTitles: []
+    roleFamilies: [quantitative-research]
+    excludedRoleFamilies: [sales]
     includeKeywords:
       - statistics
       - markets
     excludeKeywords:
       - high-frequency trading operations
+    requiredEvidence: []
+    preferredEvidence: [probability, statistics]
+    negativeEvidence: []
+    requiredSkills: [Python]
     preferredSkills:
       - Python
       - probability
+    optionalSkills: [SQL]
+    excludedSkills: []
     preferredIndustries:
       - financial technology
     priority: 5
     recommendationQuota: 4
+    acceptableSeniorities: [entry, mid, senior]
+    preferredCountries: [DE, NL, GB]
+    preferredRemotePolicies: [remote, hybrid]
+    minimumScore: 60
   - id: data-science
     displayName: Data Science
     enabled: true
     targetTitles:
       - Data Scientist
       - Applied Scientist
+    adjacentTitles: [Data Engineer]
+    excludedTitles: [Account Executive]
+    roleFamilies: [data-science]
+    excludedRoleFamilies: [sales, recruiting]
     includeKeywords:
       - experimentation
       - machine learning
     excludeKeywords:
       - unpaid
+    requiredEvidence: []
+    preferredEvidence: [experimentation, machine learning]
+    negativeEvidence: [quota carrying]
+    requiredSkills: []
     preferredSkills:
       - Python
       - SQL
+    optionalSkills: [R]
+    excludedSkills: []
     preferredIndustries:
       - software
     priority: 5
     recommendationQuota: 4
+    acceptableSeniorities: [entry, mid, senior]
+    preferredCountries: [DE, NL, GB]
+    preferredRemotePolicies: [remote, hybrid]
+    minimumScore: 60
   - id: ai
     displayName: Applied AI
     enabled: true
     targetTitles:
       - AI Engineer
       - Machine Learning Engineer
+      - Software Engineer, AI Product
+    adjacentTitles: [Applied Scientist]
+    excludedTitles: [Account Executive]
+    roleFamilies: [machine-learning-ai, software-engineering]
+    excludedRoleFamilies: [sales, recruiting]
     includeKeywords:
       - language models
       - evaluation
     excludeKeywords:
       - data labeling
+    requiredEvidence: [AI]
+    preferredEvidence: [language models, evaluation]
+    negativeEvidence: [data labeling]
+    requiredSkills: []
     preferredSkills:
       - TypeScript
       - Python
+    optionalSkills: [SQL]
+    excludedSkills: []
     preferredIndustries:
       - artificial intelligence
     priority: 4
     recommendationQuota: 4
+    acceptableSeniorities: [entry, mid, senior]
+    preferredCountries: [DE, NL, GB]
+    preferredRemotePolicies: [remote, hybrid]
+    minimumScore: 60
   - id: marketing-devrel
     displayName: Technical Marketing and Developer Relations
     enabled: true
     targetTitles:
       - Developer Advocate
       - Technical Product Marketing Manager
+    adjacentTitles: [Technical Community Manager]
+    excludedTitles: [Account Executive]
+    roleFamilies: [developer-relations, technical-marketing]
+    excludedRoleFamilies: [sales, recruiting]
     includeKeywords:
       - developer education
       - technical content
     excludeKeywords:
       - commission only
+    requiredEvidence: []
+    preferredEvidence: [developer education, technical content]
+    negativeEvidence: [quota carrying]
+    requiredSkills: []
     preferredSkills:
       - public speaking
       - technical writing
+    optionalSkills: [analytics]
+    excludedSkills: []
     preferredIndustries:
       - developer tools
     priority: 3
     recommendationQuota: 4
+    acceptableSeniorities: [entry, mid, senior]
+    preferredCountries: [DE, NL, GB]
+    preferredRemotePolicies: [remote, hybrid]
+    minimumScore: 60
   - id: community-web3
     displayName: Technical Community
     enabled: true
     targetTitles:
       - Technical Community Manager
       - Ecosystem Lead
+    adjacentTitles: [Developer Advocate]
+    excludedTitles: [Community Support Specialist]
+    roleFamilies: [technical-community]
+    excludedRoleFamilies: [customer-support, sales]
     includeKeywords:
       - community programs
       - ecosystem
     excludeKeywords:
       - token promotion
+    requiredEvidence: []
+    preferredEvidence: [community programs, ecosystem]
+    negativeEvidence: [customer support]
+    requiredSkills: []
     preferredSkills:
       - community strategy
       - analytics
+    optionalSkills: [technical writing]
+    excludedSkills: []
     preferredIndustries:
       - distributed systems
     priority: 2
     recommendationQuota: 4
+    acceptableSeniorities: [entry, mid, senior, lead]
+    preferredCountries: [DE, NL, GB]
+    preferredRemotePolicies: [remote, hybrid]
+    minimumScore: 60
 
 preferences:
   preferredCountries:
@@ -138,8 +209,9 @@ preferences:
       - EEA
     rejectUnknownLocation: false
     unknownCandidateLanguageLevelPolicy: allow
-    maximumSeniority: mid
-    maximumRequiredExperienceYears: 3
+    maximumSeniority: staff
+    maximumRequiredExperienceYears: 5
+    maximumRequiredExperienceYearsIntentional: false
     allowMandatoryPhd: false
     excludedCompanies:
       - Fictional Staffing Example

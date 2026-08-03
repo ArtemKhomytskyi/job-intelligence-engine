@@ -18,10 +18,25 @@ const searchTrackSchema = z.strictObject({
   displayName: nonEmptyStringSchema,
   enabled: z.boolean(),
   targetTitles: z.array(nonEmptyStringSchema).min(1),
+  adjacentTitles: z.array(nonEmptyStringSchema).default([]),
+  excludedTitles: z.array(nonEmptyStringSchema).default([]),
+  roleFamilies: z.array(idSchema).default([]),
+  excludedRoleFamilies: z.array(idSchema).default([]),
   includeKeywords: z.array(nonEmptyStringSchema),
   excludeKeywords: z.array(nonEmptyStringSchema),
+  requiredEvidence: z.array(nonEmptyStringSchema).default([]),
+  preferredEvidence: z.array(nonEmptyStringSchema).default([]),
+  negativeEvidence: z.array(nonEmptyStringSchema).default([]),
+  requiredSkills: z.array(nonEmptyStringSchema).default([]),
   preferredSkills: z.array(nonEmptyStringSchema),
+  optionalSkills: z.array(nonEmptyStringSchema).default([]),
+  excludedSkills: z.array(nonEmptyStringSchema).default([]),
   preferredIndustries: z.array(nonEmptyStringSchema),
+  roleSpecificExperienceYears: z.number().finite().min(0).max(80).optional(),
+  acceptableSeniorities: z.array(seniorityLevelSchema).default([]),
+  preferredCountries: z.array(countryCodeSchema).default([]),
+  preferredRemotePolicies: z.array(remotePolicySchema).default([]),
+  minimumScore: percentageSchema.optional(),
   priority: z.number().finite().positive(),
   recommendationQuota: z.number().int().positive().optional(),
 });
@@ -33,6 +48,7 @@ const hardFiltersSchema = z.strictObject({
   unknownCandidateLanguageLevelPolicy: z.enum(['allow', 'reject']),
   maximumSeniority: seniorityLevelSchema,
   maximumRequiredExperienceYears: z.number().finite().min(0).max(80),
+  maximumRequiredExperienceYearsIntentional: z.boolean().default(false),
   allowMandatoryPhd: z.boolean(),
   excludedCompanies: z.array(nonEmptyStringSchema.max(500)).max(1_000),
   excludedIndustries: z.array(nonEmptyStringSchema.max(500)).max(1_000),
@@ -44,13 +60,14 @@ const hardFiltersSchema = z.strictObject({
   companyLegalSuffixes: z.array(nonEmptyStringSchema.max(30)).max(100),
 });
 
-const defaultHardFilters: z.input<typeof hardFiltersSchema> = {
+const defaultHardFilters = {
   allowedCountries: [],
   allowedCountryGroups: [],
   rejectUnknownLocation: false,
   unknownCandidateLanguageLevelPolicy: 'allow',
   maximumSeniority: 'executive',
   maximumRequiredExperienceYears: 80,
+  maximumRequiredExperienceYearsIntentional: false,
   allowMandatoryPhd: true,
   excludedCompanies: [],
   excludedIndustries: [],
@@ -74,7 +91,7 @@ const defaultHardFilters: z.input<typeof hardFiltersSchema> = {
     'BV',
     'PLC',
   ],
-};
+} satisfies z.output<typeof hardFiltersSchema>;
 
 export const searchSchema = z.strictObject({
   tracks: z.array(searchTrackSchema).min(1),

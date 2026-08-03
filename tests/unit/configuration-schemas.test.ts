@@ -58,6 +58,28 @@ describe('configuration schemas', () => {
     expect(result.success).toBe(false);
   });
 
+  it('validates Candidate Profile V2 and source track policies', async () => {
+    const profile = profileSchema.parse(
+      parse(await readFile(join('config', 'profile.example.yaml'), 'utf8')),
+    );
+    expect(profile.candidate.experience?.roleFamilies.length).toBeGreaterThan(
+      0,
+    );
+    expect(profile.candidate.targetRoles?.excludedTitles).toContain(
+      'Account Executive',
+    );
+    expect(
+      profile.candidate.capabilities?.programmingLanguages.length,
+    ).toBeGreaterThan(0);
+
+    const sources = sourcesSchema.parse(
+      parse(await readFile(join('config', 'sources.example.yaml'), 'utf8')),
+    );
+    expect(
+      sources.sources.every((source) => source.trackPolicy === 'preferred'),
+    ).toBe(true);
+  });
+
   it('rejects source settings that do not match the discriminator', () => {
     const result = sourcesSchema.safeParse({
       sources: [

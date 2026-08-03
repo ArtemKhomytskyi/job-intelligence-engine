@@ -37,12 +37,87 @@ export function mapProfile(document: ProfileDocument): CandidateProfile {
     ...(candidate.totalYearsExperience === undefined
       ? {}
       : { totalYearsExperience: candidate.totalYearsExperience }),
+    ...(candidate.experience === undefined
+      ? {}
+      : {
+          experience: {
+            roleFamilies: candidate.experience.roleFamilies,
+            ...(candidate.experience.managementYears === undefined
+              ? {}
+              : { managementYears: candidate.experience.managementYears }),
+            ...(candidate.experience.internshipYears === undefined
+              ? {}
+              : { internshipYears: candidate.experience.internshipYears }),
+          },
+        }),
+    ...(candidate.currentSeniority === undefined
+      ? {}
+      : { currentSeniority: candidate.currentSeniority }),
+    ...(candidate.maximumTargetSeniority === undefined
+      ? {}
+      : { maximumTargetSeniority: candidate.maximumTargetSeniority }),
+    ...(candidate.allowSeniorityStretch === undefined
+      ? {}
+      : { allowSeniorityStretch: candidate.allowSeniorityStretch }),
     skills: candidate.skills.map((skill) => ({
       name: skill.name,
       ...(skill.yearsOfExperience === undefined
         ? {}
         : { yearsOfExperience: skill.yearsOfExperience }),
     })),
+    ...(candidate.capabilities === undefined
+      ? {}
+      : {
+          capabilities: {
+            programmingLanguages:
+              candidate.capabilities.programmingLanguages.map(mapSkill),
+            technicalSkills:
+              candidate.capabilities.technicalSkills.map(mapSkill),
+            domainSkills: candidate.capabilities.domainSkills.map(mapSkill),
+            toolsAndPlatforms:
+              candidate.capabilities.toolsAndPlatforms.map(mapSkill),
+            certifications: candidate.capabilities.certifications,
+          },
+        }),
+    ...(candidate.targetRoles === undefined
+      ? {}
+      : { targetRoles: candidate.targetRoles }),
+    ...(candidate.careerPreferences === undefined
+      ? {}
+      : {
+          careerPreferences: {
+            preferredIndustries:
+              candidate.careerPreferences.preferredIndustries,
+            acceptableIndustries:
+              candidate.careerPreferences.acceptableIndustries,
+            excludedIndustries: candidate.careerPreferences.excludedIndustries,
+            preferredCompanyStages:
+              candidate.careerPreferences.preferredCompanyStages,
+            preferredCompanySizes:
+              candidate.careerPreferences.preferredCompanySizes,
+            preferredCompanies: candidate.careerPreferences.preferredCompanies,
+            excludedCompanies: candidate.careerPreferences.excludedCompanies,
+            preferredRemotePolicies:
+              candidate.careerPreferences.preferredRemotePolicies,
+            onsiteTolerance: candidate.careerPreferences.onsiteTolerance,
+            preferredCountries: candidate.careerPreferences.preferredCountries,
+            preferredRegions: candidate.careerPreferences.preferredRegions,
+            needsVisaSponsorship:
+              candidate.careerPreferences.needsVisaSponsorship,
+            ...(candidate.careerPreferences.minimumSalary === undefined
+              ? {}
+              : { minimumSalary: candidate.careerPreferences.minimumSalary }),
+            ...(candidate.careerPreferences.travelTolerancePercent === undefined
+              ? {}
+              : {
+                  travelTolerancePercent:
+                    candidate.careerPreferences.travelTolerancePercent,
+                }),
+          },
+        }),
+    ...(candidate.evidencePreferences === undefined
+      ? {}
+      : { evidencePreferences: candidate.evidencePreferences }),
     languages: candidate.languages,
     citizenships: candidate.citizenships,
     workAuthorizations: candidate.workAuthorizations,
@@ -58,6 +133,18 @@ export function mapProfile(document: ProfileDocument): CandidateProfile {
   };
 }
 
+function mapSkill(skill: {
+  readonly name: string;
+  readonly yearsOfExperience?: number | undefined;
+}) {
+  return {
+    name: skill.name,
+    ...(skill.yearsOfExperience === undefined
+      ? {}
+      : { yearsOfExperience: skill.yearsOfExperience }),
+  };
+}
+
 export function mapSearch(
   document: SearchDocument,
   filePath: string,
@@ -70,10 +157,29 @@ export function mapSearch(
         displayName: track.displayName,
         enabled: track.enabled,
         targetTitles: track.targetTitles,
+        adjacentTitles: track.adjacentTitles,
+        excludedTitles: track.excludedTitles,
+        roleFamilies: track.roleFamilies,
+        excludedRoleFamilies: track.excludedRoleFamilies,
         includeKeywords: track.includeKeywords,
         excludeKeywords: track.excludeKeywords,
+        requiredEvidence: track.requiredEvidence,
+        preferredEvidence: track.preferredEvidence,
+        negativeEvidence: track.negativeEvidence,
+        requiredSkills: track.requiredSkills,
         preferredSkills: track.preferredSkills,
+        optionalSkills: track.optionalSkills,
+        excludedSkills: track.excludedSkills,
         preferredIndustries: track.preferredIndustries,
+        ...(track.roleSpecificExperienceYears === undefined
+          ? {}
+          : { roleSpecificExperienceYears: track.roleSpecificExperienceYears }),
+        acceptableSeniorities: track.acceptableSeniorities,
+        preferredCountries: track.preferredCountries,
+        preferredRemotePolicies: track.preferredRemotePolicies,
+        ...(track.minimumScore === undefined
+          ? {}
+          : { minimumScore: createPercentage(track.minimumScore) }),
         priority: track.priority,
         ...(track.recommendationQuota === undefined
           ? {}
@@ -122,6 +228,8 @@ export function mapSearch(
           maximumSeniority: preferences.hardFilters.maximumSeniority,
           maximumRequiredExperienceYears:
             preferences.hardFilters.maximumRequiredExperienceYears,
+          maximumRequiredExperienceYearsIntentional:
+            preferences.hardFilters.maximumRequiredExperienceYearsIntentional,
           allowMandatoryPhd: preferences.hardFilters.allowMandatoryPhd,
           excludedCompanies: preferences.hardFilters.excludedCompanies,
           excludedIndustries: preferences.hardFilters.excludedIndustries,
@@ -168,6 +276,7 @@ export function mapSources(document: SourcesDocument): readonly SourceConfig[] {
       displayName: source.displayName,
       tags: source.tags,
       trackIds: source.trackIds,
+      trackPolicy: source.trackPolicy,
       ...(source.company === undefined ? {} : { company: source.company }),
       ...(source.requestTimeoutMs === undefined
         ? {}

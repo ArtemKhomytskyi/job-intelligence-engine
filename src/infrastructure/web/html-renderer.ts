@@ -52,7 +52,10 @@ export function renderRecommendationDetails(
       <h2 id="overview-heading">Opportunity overview</h2>
       <div class="metadata-grid">
         ${metric('Final score', formatScore(details.finalScore))}
+        ${metric('Candidate fit', details.candidateFitScore === undefined ? 'Not recorded historically' : formatScore(details.candidateFitScore))}
         ${metric('Opportunity score', formatScore(details.opportunityScore))}
+        ${metric('Threshold', details.threshold === undefined ? 'Not recorded historically' : formatScore(details.threshold))}
+        ${metric('Evaluation outcome', details.evaluationOutcome ?? 'Not recorded historically')}
         ${metric('Completeness', `${Math.round(details.completeness * 100)}%`)}
         ${metric('Status', details.currentStatus)}
         ${metric('Location', details.location ?? 'Not provided')}
@@ -76,6 +79,7 @@ export function renderRecommendationDetails(
       </dl>
     </section>
     ${renderSignals(details.positives, details.concerns, details.missingData)}
+    <section class="panel" aria-labelledby="track-evaluations-heading"><h2 id="track-evaluations-heading">Track evaluations</h2>${stringList(details.alternativeTrackEvaluations ?? [], 'Alternative track evaluations were not recorded for this historical batch.')}</section>
     ${renderScoreBreakdown(details.components)}
     <section class="panel" aria-labelledby="description-heading">
       <h2 id="description-heading">Original job description</h2>
@@ -274,7 +278,7 @@ function renderSignals(
 ): string {
   return `<section class="panel" aria-labelledby="signals-heading"><h2 id="signals-heading">Explainability</h2><div class="detail-grid">
     <div><h3>Positive signals</h3>${reasonList(positives, 'No positive signals recorded.')}</div>
-    <div><h3>Concerns</h3>${reasonList(concerns, 'No concerns recorded.')}</div>
+    <div><h3>Concerns</h3>${reasonList(concerns, 'No negative concerns recorded. Missing evidence is listed separately.')}</div>
     <div><h3>Missing data</h3>${stringList(missing, 'No missing-data keys.')}</div>
   </div></section>`;
 }
@@ -299,8 +303,26 @@ function renderPipelineState(state: LatestPipelineState | undefined): string {
   return `<section class="panel" aria-labelledby="pipeline-heading"><h2 id="pipeline-heading">Latest pipeline state</h2><div class="pipeline-grid">
     <div><h3>Collection</h3>${state.collection === undefined ? '<p class="muted">Unavailable</p>' : `<div class="metadata-grid">${metric('Status', state.collection.status)}${metric('Sources', `${state.collection.sourcesSucceeded} succeeded / ${state.collection.sourcesFailed} failed`)}${metric('Jobs', `${state.collection.jobsCollected} collected · ${state.collection.jobsCreated} created · ${state.collection.jobsUpdated} updated`)}${metric('Updated', formatDate(state.collection.completedAt ?? state.collection.startedAt))}</div>`}</div>
     <div><h3>Processing</h3>${state.processing === undefined ? '<p class="muted">Unavailable</p>' : `<div class="metadata-grid">${metric('Status', state.processing.status)}${metric('Counts', `${state.processing.eligible} eligible · ${state.processing.rejected} rejected`)}${metric('Duplicates', `${state.processing.duplicates} exact · ${state.processing.possibleDuplicates} possible`)}${metric('Errors', String(state.processing.errors))}</div>`}</div>
-    <div><h3>Recommendations</h3>${state.recommendations === undefined ? '<p class="muted">Unavailable</p>' : `<div class="metadata-grid">${metric('Batch', state.recommendations.batchId)}${metric('Selected', `${state.recommendations.selected} / ${state.recommendations.requested}`)}${metric('Evaluated', formatDate(state.recommendations.evaluationTime))}</div>`}</div>
-  </div></section>`;
+    <div><h3>Recommendations</h3>${state.recommendations === undefined ? '<p class="muted">Unavailable</p>' : `<div class="metadata-grid">${metric('Batch', state.recommendations.batchId)}${metric('Selected', `${state.recommendations.selected} / ${state.recommendations.requested}`)}${metric('Evaluated jobs', state.recommendations.evaluated === undefined ? 'Not recorded historically' : String(state.recommendations.evaluated))}${metric('Evaluated at', formatDate(state.recommendations.evaluationTime))}</div>`}</div>
+  </div>${state.recommendations === undefined ? '' : renderRecommendationDiagnostics(state.recommendations)}</section>`;
+}
+
+function renderRecommendationDiagnostics(
+  state: NonNullable<LatestPipelineState['recommendations']>,
+): string {
+  const diagnostics = state.diagnostics ?? [];
+  const summary = Object.entries(state.outcomeCounts ?? {})
+    .sort(([left], [right]) => left.localeCompare(right, 'en-US'))
+    .map(([outcome, count]) => `${humanize(outcome)}: ${count}`)
+    .join(' · ');
+  if (diagnostics.length === 0)
+    return `<div><h3>Recommendation diagnostics</h3><p class="muted">No per-job diagnostics were persisted for this historical batch.</p></div>`;
+  return `<div><h3>Recommendation diagnostics</h3><p>${escapeHtml(summary)}</p><table class="score-table"><thead><tr><th>Job</th><th>Outcome</th><th>Track</th><th>Candidate fit</th><th>Opportunity</th><th>Final / threshold</th><th>Exact reason</th></tr></thead><tbody>${diagnostics
+    .map(
+      (item) =>
+        `<tr><th scope="row">${escapeHtml(item.title)}<br><span class="muted">${escapeHtml(item.company)}</span></th><td>${escapeHtml(humanize(item.outcome))}</td><td>${escapeHtml(item.selectedTrackId ?? 'No valid track')}</td><td>${item.candidateFitScore === undefined ? '—' : formatScore(item.candidateFitScore)}</td><td>${item.opportunityScore === undefined ? '—' : formatScore(item.opportunityScore)}</td><td>${item.finalScore === undefined ? '—' : formatScore(item.finalScore)} / ${formatScore(item.threshold)}</td><td>${escapeHtml(item.exclusionReason ?? 'Selected')}</td></tr>`,
+    )
+    .join('')}</tbody></table></div>`;
 }
 
 function pipelineFailureExplanation(stage: PipelineStage): string {
@@ -437,10 +459,16 @@ function formatScore(value: number): string {
 }
 
 function humanize(value: string): string {
-  return value
-    .replace(/-/gu, ' ')
-    .replace(/([a-z])([A-Z])/gu, '$1 $2')
-    .replace(/^./u, (letter) => letter.toLocaleUpperCase('en-US'));
+  const spaced = value
+    .replace(/[-_]/gu, ' ')
+    .replace(/([a-z])([A-Z])/gu, '$1 $2');
+  const normalized =
+    value === value.toLocaleUpperCase('en-US')
+      ? spaced.toLocaleLowerCase('en-US')
+      : spaced;
+  return normalized.replace(/^./u, (letter) =>
+    letter.toLocaleUpperCase('en-US'),
+  );
 }
 
 export function escapeHtml(value: string): string {

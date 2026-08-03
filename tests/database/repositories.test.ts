@@ -118,6 +118,7 @@ describe('PostgreSQL persistence repositories', () => {
     expect(await client.recommendationBatch.count()).toBe(1);
     expect(await client.recommendation.count()).toBe(1);
     expect(await client.jobScore.count()).toBe(1);
+    expect(await client.recommendationEvaluation.count()).toBe(1);
   });
 
   it('loads complete reports and persists automatic and explicit application status', async () => {
@@ -150,6 +151,16 @@ describe('PostgreSQL persistence repositories', () => {
       location: 'Berlin, DE',
       currentStatus: 'NEW',
     });
+    expect(report.latestState?.recommendations).toMatchObject({
+      evaluated: 1,
+      outcomeCounts: { SELECTED: 1 },
+      diagnostics: [
+        expect.objectContaining({
+          title: 'Platform Engineer',
+          outcome: 'SELECTED',
+        }),
+      ],
+    });
     const recommendationId = report.items[0]?.recommendationId;
     if (recommendationId === undefined)
       throw new Error('Expected a report recommendation.');
@@ -165,7 +176,13 @@ describe('PostgreSQL persistence repositories', () => {
       currentStatus: 'VIEWED',
       originalTitle: 'Platform Engineer',
       selectedTrackId: 'platform',
+      evaluationOutcome: 'SELECTED',
+      threshold: 0,
     });
+    expect(viewed.candidateFitScore).toBeTypeOf('number');
+    expect(viewed.alternativeTrackEvaluations).toEqual([
+      expect.stringContaining('platform:'),
+    ]);
     expect(viewed.components).toHaveLength(13);
     expect(viewed.description).toBe('Synthetic role description');
     await detailsService.execute(recommendationId);
@@ -434,6 +451,41 @@ describe('PostgreSQL persistence repositories', () => {
     expect(await client.recommendation.count()).toBe(0);
   });
 
+  it('persists evaluated jobs that fall below the recommendation threshold', async () => {
+    await persistSource('source-a', 'Source A');
+    await upsertJob(transactions, makePosting());
+    await new ProcessCollectedJobs(
+      new TransactionalProcessingRepository(transactions),
+      { now: () => new Date('2026-07-30T10:00:00.000Z') },
+      { debug() {}, info() {}, warn() {}, error() {} },
+      new Sha256ProcessingHasher(),
+    ).execute(processingInput());
+    const base = recommendationInput();
+    const batch = await new CreateRecommendations(
+      new TransactionalRecommendationBatchRepository(transactions),
+      { now: () => new Date('2026-07-30T12:00:00.000Z') },
+      new Sha256ProcessingHasher(),
+    ).execute({
+      ...base,
+      search: {
+        ...base.search,
+        preferences: {
+          ...base.search.preferences,
+          minimumAcceptableScore: createPercentage(100),
+        },
+      },
+    });
+
+    expect(batch.selectedCount).toBe(0);
+    expect(await client.jobScore.count()).toBe(0);
+    const evaluation = await client.recommendationEvaluation.findFirst();
+    expect(evaluation).toMatchObject({
+      outcome: 'BELOW_MINIMUM_SCORE',
+      selectedTrackId: 'platform',
+    });
+    expect(Number(evaluation?.threshold)).toBe(100);
+  });
+
   it('persists normalized processing decisions and skips an identical rerun', async () => {
     await persistSource('source-a', 'Source A');
     await upsertJob(
@@ -506,6 +558,8 @@ describe('PostgreSQL persistence repositories', () => {
     expect(storedJob).toMatchObject({
       normalizationVersion: NORMALIZATION_VERSION,
       normalizedLocationKey: 'hybrid|unspecified|de::berlin',
+      remotePolicy: 'hybrid',
+      employmentType: 'full-time',
     });
     expect(storedJob.normalizedPayload).not.toBeNull();
     expect(await client.jobProcessingRun.findFirst()).toMatchObject({

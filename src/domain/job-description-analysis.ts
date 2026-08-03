@@ -225,6 +225,31 @@ const TECHNOLOGY_RULES: readonly TechnologyRule[] = [
     /\bstakeholder management\b/giu,
   ),
   technology('UX Design', 'PRACTICE', /\b(?:ux|user experience) design\b/giu),
+  technology(
+    'Frontend Development',
+    'PRACTICE',
+    /\b(?:technical front[- ]end knowledge|front[- ]end development)\b/giu,
+  ),
+  technology(
+    'Production-quality Code',
+    'PRACTICE',
+    /\bproduction[- ]quality code\b/giu,
+  ),
+  technology('Technical Content', 'PRACTICE', /\btechnical content\b/giu),
+  technology(
+    'Product Development Workflows',
+    'PRACTICE',
+    /\bproduct[- ]development workflows?\b/giu,
+  ),
+  technology('Design Systems', 'PRACTICE', /\bdesign systems?\b/giu),
+  technology('Figma API', 'PLATFORM', /\bfigma api\b/giu),
+  technology('Figma Plugins', 'PLATFORM', /\bfigma\)?\s+plugins?\b/giu),
+  technology(
+    'Written and Verbal Communication',
+    'PRACTICE',
+    /\bwritten and verbal communications?\b/giu,
+  ),
+  technology('Community Building', 'PRACTICE', /\bcommunity building\b/giu),
 ];
 
 const LANGUAGE_RULES = [
@@ -416,8 +441,17 @@ function extractTechnologies(
   return preferStrongest(
     results,
     (item) => item.canonicalName,
-    (item) => item.extraction?.confidence ?? 0,
+    (item) =>
+      requirementStrength(item.requirement) * 10 +
+      (item.extraction?.confidence ?? 0),
   );
+}
+
+function requirementStrength(requirement: RequirementLevel): number {
+  if (requirement === 'REQUIRED') return 3;
+  if (requirement === 'PREFERRED') return 2;
+  if (requirement === 'OPTIONAL') return 1;
+  return 0;
 }
 
 function extractExperience(

@@ -49,12 +49,14 @@ const COUNTRY_ALIASES: Readonly<Record<string, string>> = {
   sweden: 'SE',
   'united kingdom': 'GB',
   uk: 'GB',
+  england: 'GB',
   'united states': 'US',
   usa: 'US',
   canada: 'CA',
   switzerland: 'CH',
   norway: 'NO',
   iceland: 'IS',
+  japan: 'JP',
 };
 const KNOWN_COUNTRY_CODES = new Set(Object.values(COUNTRY_ALIASES));
 

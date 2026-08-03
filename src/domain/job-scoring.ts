@@ -4,10 +4,16 @@ import type {
   NormalizedEducationRequirement,
 } from './job-processing.js';
 import type {
+  MultiTrackScoreResult,
   ScoreComponentResult,
   ScoreReason,
   ScoreResult,
 } from './score-result.js';
+import {
+  analyzeRoleTitle,
+  exactTitleMatches,
+  phraseMatches,
+} from './role-matching.js';
 import type {
   ScoringAlias,
   ScoringComponentKey,
@@ -18,7 +24,7 @@ import type {
   SearchTrack,
 } from './search-configuration.js';
 
-export const SCORING_VERSION = 'deterministic-scoring-v1';
+export const SCORING_VERSION = 'deterministic-scoring-v2';
 
 export interface ScoringSourceContext {
   readonly type?: string;
@@ -76,24 +82,49 @@ export function scoreJobAgainstTrack(input: ScoreJobInput): ScoreResult {
   const components = componentOrder.map((key) =>
     buildComponent(key, values[key], input.scoring),
   );
-  const totalScore = round4(
-    components.reduce((sum, component) => sum + component.contribution, 0),
-  );
   const byKey = new Map(
     components.map((component) => [component.key, component]),
   );
+  const candidateFitScore = round4(
+    requiredComponent(byKey, 'titleRelevance').rawScore * 0.3 +
+      requiredComponent(byKey, 'trackMatch').rawScore * 0.25 +
+      requiredComponent(byKey, 'skills').rawScore * 0.2 +
+      requiredComponent(byKey, 'experience').rawScore * 0.15 +
+      requiredComponent(byKey, 'location').rawScore * 0.04 +
+      requiredComponent(byKey, 'workAuthorization').rawScore * 0.03 +
+      requiredComponent(byKey, 'language').rawScore * 0.03,
+  );
   const opportunityScore = round4(
-    totalScore * 0.55 +
-      requiredComponent(byKey, 'freshness').rawScore * 0.15 +
-      requiredComponent(byKey, 'salary').rawScore * 0.1 +
-      requiredComponent(byKey, 'applicationSimplicity').rawScore * 0.1 +
-      requiredComponent(byKey, 'sourceQuality').rawScore * 0.1,
+    requiredComponent(byKey, 'freshness').rawScore * 0.35 +
+      requiredComponent(byKey, 'salary').rawScore * 0.2 +
+      requiredComponent(byKey, 'applicationSimplicity').rawScore * 0.2 +
+      requiredComponent(byKey, 'sourceQuality').rawScore * 0.25,
+  );
+  const validTrackMatch =
+    requiredComponent(byKey, 'trackMatch').reasons.every(
+      (item) =>
+        ![
+          'TRACK_REQUIRED_EVIDENCE_MISSING',
+          'EXCLUDED_TITLE_EXACT',
+          'EXCLUDED_TITLE_PHRASE',
+          'EXCLUDED_ROLE_FAMILY',
+          'PROHIBITED_ROLE_EVIDENCE',
+          'NO_VALID_TRACK_MATCH',
+        ].includes(item.code),
+    ) && requiredComponent(byKey, 'trackMatch').rawScore >= 60;
+  const totalScore = round4(
+    validTrackMatch
+      ? candidateFitScore * 0.8 + opportunityScore * 0.2
+      : Math.min(39, candidateFitScore * 0.4 + opportunityScore * 0.1),
   );
   const reasons = components.flatMap((component) => component.reasons);
   return {
     totalScore,
+    candidateFitScore,
     opportunityScore,
     selectedTrackId: input.track.id,
+    validTrackMatch,
+    ...(validTrackMatch ? {} : { exclusionReason: 'NO_VALID_TRACK_MATCH' }),
     components,
     positiveReasons: uniqueReasons(
       reasons.filter((item) => item.impact === 'POSITIVE'),
@@ -116,6 +147,17 @@ export function selectBestTrack(
     readonly tracks: readonly SearchTrack[];
   },
 ): ScoreResult {
+  const result = evaluateTracks(input);
+  if (result.score === undefined)
+    throw new RangeError('No enabled track produced a valid role match.');
+  return result.score;
+}
+
+export function evaluateTracks(
+  input: Omit<ScoreJobInput, 'track'> & {
+    readonly tracks: readonly SearchTrack[];
+  },
+): MultiTrackScoreResult {
   const scores = input.tracks
     .filter((track) => track.enabled)
     .map((track) => scoreJobAgainstTrack({ ...input, track }))
@@ -125,10 +167,26 @@ export function selectBestTrack(
         right.opportunityScore - left.opportunityScore ||
         compareText(left.selectedTrackId, right.selectedTrackId),
     );
-  const selected = scores[0];
-  if (selected === undefined)
+  if (scores.length === 0)
     throw new RangeError('At least one enabled search track is required.');
-  return selected;
+  const valid = scores.filter((score) => score.validTrackMatch === true);
+  const selected = valid[0];
+  const evaluations = scores.map((score) => ({
+    trackId: score.selectedTrackId,
+    validMatch: score.validTrackMatch === true,
+    candidateFitScore: score.candidateFitScore ?? 0,
+    opportunityScore: score.opportunityScore,
+    finalScore: score.totalScore,
+    positiveEvidence: score.positiveReasons,
+    negativeEvidence: score.concerns,
+    missingEvidence: score.missingData,
+    ...(score.exclusionReason === undefined
+      ? {}
+      : { exclusionReason: score.exclusionReason }),
+  }));
+  return selected === undefined
+    ? { evaluations, exclusionReason: 'NO_VALID_TRACK_MATCH' }
+    : { score: { ...selected, trackEvaluations: evaluations }, evaluations };
 }
 
 export function scoreSkills(input: ScoreJobInput): ComponentValue {
@@ -140,13 +198,29 @@ export function scoreSkills(input: ScoreJobInput): ComponentValue {
     );
   const aliases = input.scoring.settings.skillAliases;
   const candidate = new Set(
-    input.candidate.skills.map((skill) => canonical(skill.name, aliases)),
+    candidateSkills(input.candidate).map((skill) =>
+      canonical(skill.name, aliases),
+    ),
   );
   const requirements = distinctBy(
-    input.job.skillRequirements.map((item) => ({
-      name: item.canonicalName,
-      required: item.requirement === 'REQUIRED',
-    })),
+    [
+      ...input.job.skillRequirements.map((item) => ({
+        name: item.canonicalName,
+        required: item.requirement === 'REQUIRED',
+      })),
+      ...(input.track.requiredSkills ?? []).map((name) => ({
+        name,
+        required: true,
+      })),
+      ...input.track.preferredSkills.map((name) => ({
+        name,
+        required: false,
+      })),
+      ...(input.track.optionalSkills ?? []).map((name) => ({
+        name,
+        required: false,
+      })),
+    ],
     (item) => canonical(item.name, aliases),
   );
   let earned = 0;
@@ -178,27 +252,33 @@ export function scoreSkills(input: ScoreJobInput): ComponentValue {
       );
     }
   }
-  return value(possible === 0 ? 50 : (earned / possible) * 100, 0.95, reasons);
+  return value(possible === 0 ? 0 : (earned / possible) * 100, 0.95, reasons);
 }
 
 export function scoreExperience(input: ScoreJobInput): ComponentValue {
-  const required = input.job.experienceRequirements
-    .filter((item) => item.level === 'REQUIRED')
-    .map((item) => item.minimumYears ?? 0);
+  const required = [
+    ...input.job.experienceRequirements
+      .filter((item) => item.level === 'REQUIRED')
+      .map((item) => item.minimumYears ?? 0),
+    ...(input.track.roleSpecificExperienceYears === undefined
+      ? []
+      : [input.track.roleSpecificExperienceYears]),
+  ];
   if (required.length === 0)
     return missing(
       'EXPERIENCE_REQUIREMENT_UNAVAILABLE',
       'Mandatory experience is not specified.',
       'experienceRequirement',
     );
-  if (input.candidate.totalYearsExperience === undefined)
+  const relevantYears = candidateRelevantExperience(input);
+  if (relevantYears === undefined)
     return missing(
       'CANDIDATE_EXPERIENCE_UNAVAILABLE',
       'Candidate experience years are unavailable.',
       'candidateExperience',
     );
   const minimum = Math.max(...required);
-  const gap = minimum - input.candidate.totalYearsExperience;
+  const gap = minimum - relevantYears;
   if (gap <= 0)
     return value(100, 0.95, [
       reason(
@@ -207,7 +287,8 @@ export function scoreExperience(input: ScoreJobInput): ComponentValue {
         'POSITIVE',
         {
           requiredYears: minimum,
-          candidateYears: input.candidate.totalYearsExperience,
+          candidateYears: relevantYears,
+          totalCandidateYears: input.candidate.totalYearsExperience ?? null,
         },
       ),
     ]);
@@ -225,61 +306,294 @@ export function scoreExperience(input: ScoreJobInput): ComponentValue {
 }
 
 export function scoreTitleRelevance(input: ScoreJobInput): ComponentValue {
-  const title = canonical(
-    input.job.normalizedTitle,
-    input.scoring.settings.titleAliases,
+  const aliases = [
+    ...input.scoring.settings.titleAliases,
+    ...(input.candidate.targetRoles?.titleAliases ?? []),
+  ];
+  const title = input.job.normalizedTitle;
+  const candidateTargets = input.candidate.targetRoles;
+  const tiers = [
+    {
+      score: 100,
+      code: 'PRIMARY_TITLE_MATCH',
+      titles: candidateTargets?.primaryTitles ?? [],
+    },
+    {
+      score: 90,
+      code: 'SECONDARY_TITLE_MATCH',
+      titles: candidateTargets?.secondaryTitles ?? [],
+    },
+    {
+      score: 75,
+      code: 'ADJACENT_TITLE_MATCH',
+      titles: candidateTargets?.adjacentTitles ?? [],
+    },
+    {
+      score: 60,
+      code: 'EXPLORATORY_TITLE_MATCH',
+      titles: candidateTargets?.exploratoryTitles ?? [],
+    },
+    {
+      score: 100,
+      code: 'TRACK_TARGET_TITLE_MATCH',
+      titles: candidateTargets === undefined ? input.track.targetTitles : [],
+    },
+    {
+      score: 75,
+      code: 'TRACK_ADJACENT_TITLE_MATCH',
+      titles:
+        candidateTargets === undefined
+          ? (input.track.adjacentTitles ?? [])
+          : [],
+    },
+  ] as const;
+  const matched = tiers.find((tier) =>
+    tier.titles.some((target) => exactTitleMatches(title, target, aliases)),
   );
-  const targets = input.track.targetTitles.map((item) =>
-    canonical(item, input.scoring.settings.titleAliases),
-  );
-  if (targets.includes(title))
-    return value(100, 1, [
+  if (matched !== undefined)
+    return value(matched.score, 1, [
       reason(
-        'TITLE_EXACT_MATCH',
-        'Job title exactly matches a configured target title.',
+        matched.code,
+        `Matched configured title: ${input.job.normalizedTitle}.`,
         'POSITIVE',
+        { score: matched.score },
       ),
     ]);
-  const titleTokens = tokens(title);
-  const best = Math.max(
-    0,
-    ...targets.map((target) => jaccard(titleTokens, tokens(target))),
-  );
-  return value(best * 100, best >= 0.5 ? 0.85 : 0.7, [
+  const jobFamilies = analyzeRoleTitle(title, aliases).families;
+  const targetFamilies = new Set([
+    ...(candidateTargets === undefined
+      ? configuredTrackFamilies(input.track, aliases)
+      : candidateTargets.roleFamilies),
+  ]);
+  const shared = jobFamilies.filter((family) => targetFamilies.has(family));
+  if (shared.length > 0)
+    return value(70, 0.9, [
+      reason(
+        'ROLE_FAMILY_MATCH',
+        `Matched role family: ${shared[0] ?? ''}.`,
+        'POSITIVE',
+        { roleFamily: shared[0] ?? '' },
+      ),
+    ]);
+  return value(0, 1, [
     reason(
-      best >= 0.5 ? 'TITLE_TOKEN_MATCH' : 'TITLE_WEAK_MATCH',
-      best >= 0.5
-        ? 'Job title substantially overlaps a target title.'
-        : 'Job title has limited target-title overlap.',
-      best >= 0.5 ? 'POSITIVE' : 'NEGATIVE',
+      'TITLE_ROLE_MISMATCH',
+      'Job title and role family do not match this track.',
+      'NEGATIVE',
     ),
   ]);
 }
 
 export function scoreTrackMatch(input: ScoreJobInput): ComponentValue {
-  const title = scoreTitleRelevance(input).score;
-  const description = normalize(input.job.description ?? '');
+  const evidenceText = jobEvidenceText(input.job);
+  const aliases = [
+    ...input.scoring.settings.titleAliases,
+    ...(input.candidate.targetRoles?.titleAliases ?? []),
+  ];
+  const jobAnalysis = analyzeRoleTitle(input.job.normalizedTitle, aliases);
+  const trackTitle = trackTitleRelevance(input, aliases, jobAnalysis.families);
+  const excludedTitle = [
+    ...(input.track.excludedTitles ?? []),
+    ...(input.candidate.targetRoles?.excludedTitles ?? []),
+  ].find((item) => exactTitleMatches(input.job.normalizedTitle, item, aliases));
+  if (excludedTitle !== undefined)
+    return value(0, 1, [
+      reason(
+        'EXCLUDED_TITLE_EXACT',
+        `Excluded title matched: ${excludedTitle}.`,
+        'NEGATIVE',
+        { title: excludedTitle },
+      ),
+    ]);
+  const excludedPhrase = input.candidate.targetRoles?.excludedTitlePhrases.find(
+    (item) => phraseMatches(input.job.normalizedTitle, item),
+  );
+  if (excludedPhrase !== undefined)
+    return value(0, 1, [
+      reason(
+        'EXCLUDED_TITLE_PHRASE',
+        `Excluded title phrase matched: ${excludedPhrase}.`,
+        'NEGATIVE',
+        { phrase: excludedPhrase },
+      ),
+    ]);
+  const excludedFamily = jobAnalysis.families.find((family) =>
+    [
+      ...(input.track.excludedRoleFamilies ?? []),
+      ...(input.candidate.targetRoles?.excludedRoleFamilies ?? []),
+    ].includes(family),
+  );
+  if (excludedFamily !== undefined)
+    return value(0, 1, [
+      reason(
+        'EXCLUDED_ROLE_FAMILY',
+        `Excluded role family detected: ${excludedFamily}.`,
+        'NEGATIVE',
+        { roleFamily: excludedFamily },
+      ),
+    ]);
+  const prohibited =
+    input.candidate.evidencePreferences?.prohibitedConcepts.find((item) =>
+      phraseMatches(evidenceText, item),
+    );
+  if (prohibited !== undefined)
+    return value(0, 0.95, [
+      reason(
+        'PROHIBITED_ROLE_EVIDENCE',
+        `Prohibited role evidence matched: ${prohibited}.`,
+        'NEGATIVE',
+        { evidence: prohibited },
+      ),
+    ]);
+  const excludedSkill = (input.track.excludedSkills ?? []).find((item) =>
+    input.job.skillRequirements.some((skill) =>
+      exactTitleMatches(
+        skill.canonicalName,
+        item,
+        input.scoring.settings.skillAliases,
+      ),
+    ),
+  );
+  if (excludedSkill !== undefined)
+    return value(0, 0.95, [
+      reason(
+        'PROHIBITED_ROLE_EVIDENCE',
+        `Excluded skill or domain signal matched: ${excludedSkill}.`,
+        'NEGATIVE',
+        { evidence: excludedSkill },
+      ),
+    ]);
+  const missingMandatory = (
+    input.candidate.evidencePreferences?.mandatoryConcepts ?? []
+  ).filter((item) => !phraseMatches(evidenceText, item));
+  if (missingMandatory.length > 0)
+    return value(0, 0.95, [
+      reason(
+        'TRACK_REQUIRED_EVIDENCE_MISSING',
+        `Mandatory candidate concepts are missing: ${missingMandatory.join(', ')}.`,
+        'NEGATIVE',
+        { missingCount: missingMandatory.length },
+      ),
+    ]);
+  const requiredEvidence = input.track.requiredEvidence ?? [];
+  const missingRequired = requiredEvidence.filter(
+    (item) => !phraseMatches(evidenceText, item),
+  );
+  if (missingRequired.length > 0)
+    return value(0, 0.95, [
+      reason(
+        'TRACK_REQUIRED_EVIDENCE_MISSING',
+        `Required track evidence is missing: ${missingRequired.join(', ')}.`,
+        'NEGATIVE',
+        { missingCount: missingRequired.length },
+      ),
+    ]);
+  if (
+    input.job.seniority !== undefined &&
+    (input.track.acceptableSeniorities?.length ?? 0) > 0 &&
+    !input.track.acceptableSeniorities?.includes(input.job.seniority)
+  )
+    return value(0, 0.95, [
+      reason(
+        'TRACK_REQUIRED_EVIDENCE_MISSING',
+        `Seniority ${input.job.seniority} is outside the acceptable range for track ${input.track.id}.`,
+        'NEGATIVE',
+        { seniority: input.job.seniority, trackId: input.track.id },
+      ),
+    ]);
   const included = input.track.includeKeywords.filter((keyword) =>
-    containsPhrase(description, normalize(keyword)),
+    phraseMatches(evidenceText, keyword),
   ).length;
-  const excluded = input.track.excludeKeywords.filter((keyword) =>
-    containsPhrase(description, normalize(keyword)),
+  const preferred = (input.track.preferredEvidence ?? []).filter((keyword) =>
+    phraseMatches(evidenceText, keyword),
   ).length;
-  const keywordScore =
-    input.track.includeKeywords.length === 0
-      ? 60
-      : (included / input.track.includeKeywords.length) * 100;
-  const score = Math.max(0, title * 0.6 + keywordScore * 0.4 - excluded * 20);
-  return value(score, input.job.description === undefined ? 0.6 : 0.85, [
+  const excluded = [
+    ...input.track.excludeKeywords,
+    ...(input.track.negativeEvidence ?? []),
+  ].filter((keyword) => phraseMatches(evidenceText, keyword)).length;
+  if (trackTitle < 60)
+    return value(0, 1, [
+      reason(
+        'NO_VALID_TRACK_MATCH',
+        `Job had no valid role evidence for track ${input.track.id}.`,
+        'NEGATIVE',
+        { trackId: input.track.id },
+      ),
+    ]);
+  const preferences = input.candidate.evidencePreferences;
+  const strongPositive = (preferences?.strongPositive ?? []).filter((item) =>
+    phraseMatches(evidenceText, item),
+  );
+  const moderatePositive = (preferences?.moderatePositive ?? []).filter(
+    (item) => phraseMatches(evidenceText, item),
+  );
+  const strongNegative = (preferences?.strongNegative ?? []).filter((item) =>
+    phraseMatches(evidenceText, item),
+  );
+  const moderateNegative = (preferences?.moderateNegative ?? []).filter(
+    (item) => phraseMatches(evidenceText, item),
+  );
+  const evidencePossible =
+    input.track.includeKeywords.length +
+    (input.track.preferredEvidence?.length ?? 0);
+  const evidenceScore =
+    evidencePossible === 0
+      ? trackTitle
+      : ((included + preferred) / evidencePossible) * 100;
+  const preferenceAdjustment =
+    strongPositive.length * 10 +
+    moderatePositive.length * 5 -
+    strongNegative.length * 25 -
+    moderateNegative.length * 10;
+  const score = Math.max(
+    0,
+    Math.min(
+      100,
+      trackTitle * 0.75 +
+        evidenceScore * 0.25 -
+        excluded * 25 +
+        preferenceAdjustment,
+    ),
+  );
+  return value(score, input.job.description === undefined ? 0.8 : 0.95, [
     reason(
       score >= 60 ? 'TRACK_ALIGNED' : 'TRACK_WEAK_ALIGNMENT',
       score >= 60
-        ? 'Title and configured track evidence align.'
-        : 'Configured track evidence is weak.',
+        ? `Valid role evidence matched track ${input.track.id}.`
+        : `Role evidence was insufficient for track ${input.track.id}.`,
       score >= 60 ? 'POSITIVE' : 'NEGATIVE',
-      { includedKeywords: included, excludedKeywords: excluded },
+      {
+        includedKeywords: included,
+        preferredEvidence: preferred,
+        excludedKeywords: excluded,
+        strongPositiveEvidence: strongPositive.length,
+        moderatePositiveEvidence: moderatePositive.length,
+        strongNegativeEvidence: strongNegative.length,
+        moderateNegativeEvidence: moderateNegative.length,
+      },
     ),
   ]);
+}
+
+function trackTitleRelevance(
+  input: ScoreJobInput,
+  aliases: readonly import('./scoring-config.js').ScoringAlias[],
+  jobFamilies: readonly string[],
+): number {
+  if (
+    input.track.targetTitles.some((title) =>
+      exactTitleMatches(input.job.normalizedTitle, title, aliases),
+    )
+  )
+    return 100;
+  if (
+    (input.track.adjacentTitles ?? []).some((title) =>
+      exactTitleMatches(input.job.normalizedTitle, title, aliases),
+    )
+  )
+    return 75;
+  const trackFamilies = configuredTrackFamilies(input.track, aliases);
+  return jobFamilies.some((family) => trackFamilies.has(family)) ? 70 : 0;
 }
 
 export function scoreEducation(input: ScoreJobInput): ComponentValue {
@@ -288,8 +602,8 @@ export function scoreEducation(input: ScoreJobInput): ComponentValue {
   );
   if (required.length === 0)
     return value(
-      80,
-      0.7,
+      50,
+      0.4,
       [
         reason(
           'EDUCATION_NOT_REQUIRED',
@@ -389,9 +703,13 @@ export function scoreWorkAuthorization(input: ScoreJobInput): ComponentValue {
 }
 
 export function scoreCompanyPreference(input: ScoreJobInput): ComponentValue {
+  const preferredIndustries = [
+    ...input.track.preferredIndustries,
+    ...(input.candidate.careerPreferences?.preferredIndustries ?? []),
+  ];
   const preferredIndustry =
     input.job.industry !== undefined &&
-    input.track.preferredIndustries.some(
+    preferredIndustries.some(
       (item) => normalize(item) === normalize(input.job.industry ?? ''),
     );
   return value(
@@ -531,8 +849,8 @@ export function scoreLanguage(input: ScoreJobInput): ComponentValue {
   );
   if (required.length === 0)
     return value(
-      80,
-      0.7,
+      50,
+      0.4,
       [
         reason(
           'LANGUAGE_NOT_REQUIRED',
@@ -590,7 +908,7 @@ function value(
 }
 
 function missing(code: string, message: string, key: string): ComponentValue {
-  return value(50, 0.25, [reason(code, message, 'MISSING_DATA')], key);
+  return value(0, 0.25, [reason(code, message, 'MISSING_DATA')], key);
 }
 
 function reason(
@@ -629,23 +947,6 @@ function normalize(value: string): string {
     .trim();
 }
 
-function tokens(value: string): ReadonlySet<string> {
-  return new Set(normalize(value).split(' ').filter(Boolean));
-}
-
-function jaccard(
-  left: ReadonlySet<string>,
-  right: ReadonlySet<string>,
-): number {
-  if (left.size === 0 || right.size === 0) return 0;
-  const shared = [...left].filter((item) => right.has(item)).length;
-  return shared / new Set([...left, ...right]).size;
-}
-
-function containsPhrase(text: string, phrase: string): boolean {
-  return phrase.length > 0 && ` ${text} `.includes(` ${phrase} `);
-}
-
 function educationMet(
   requirement: NormalizedEducationRequirement,
   candidate: CandidateProfile,
@@ -660,6 +961,68 @@ function educationMet(
   return candidate.education.some(
     (item) => order.indexOf(item.level) >= required,
   );
+}
+
+function candidateSkills(candidate: CandidateProfile) {
+  return [
+    ...candidate.skills,
+    ...(candidate.capabilities?.programmingLanguages ?? []),
+    ...(candidate.capabilities?.technicalSkills ?? []),
+    ...(candidate.capabilities?.domainSkills ?? []),
+    ...(candidate.capabilities?.toolsAndPlatforms ?? []),
+  ];
+}
+
+function candidateRelevantExperience(input: ScoreJobInput): number | undefined {
+  const configured = input.candidate.experience?.roleFamilies ?? [];
+  if (configured.length === 0) return input.candidate.totalYearsExperience;
+  const families = configuredTrackFamilies(input.track, [
+    ...input.scoring.settings.titleAliases,
+    ...(input.candidate.targetRoles?.titleAliases ?? []),
+  ]);
+  const relevant = Math.max(
+    0,
+    ...configured
+      .filter((item) => families.has(item.roleFamily))
+      .map((item) => item.years),
+  );
+  const total = input.candidate.totalYearsExperience;
+  if (total === undefined) return relevant;
+  return Math.min(
+    total,
+    relevant + input.scoring.settings.experienceToleranceYears,
+  );
+}
+
+function configuredTrackFamilies(
+  track: SearchTrack,
+  aliases: readonly ScoringAlias[],
+): ReadonlySet<string> {
+  return new Set([
+    ...(track.roleFamilies ?? []),
+    ...track.targetTitles.flatMap(
+      (title) => analyzeRoleTitle(title, aliases).families,
+    ),
+    ...(track.adjacentTitles ?? []).flatMap(
+      (title) => analyzeRoleTitle(title, aliases).families,
+    ),
+  ]);
+}
+
+function jobEvidenceText(job: EnrichedNormalizedJob): string {
+  const analysis = job.descriptionAnalysis;
+  return [
+    job.normalizedTitle,
+    job.description ?? '',
+    ...job.skillRequirements.flatMap((item) => [
+      item.canonicalName,
+      item.evidence,
+    ]),
+    ...(analysis?.responsibilities ?? []).map((item) => item.value),
+    ...(analysis?.requiredQualifications ?? []).map((item) => item.value),
+    ...(analysis?.preferredQualifications ?? []).map((item) => item.value),
+    ...(analysis?.niceToHaveQualifications ?? []).map((item) => item.value),
+  ].join(' ');
 }
 
 function distinctBy<T>(

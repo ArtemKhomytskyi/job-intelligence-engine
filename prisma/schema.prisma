@@ -50,50 +50,51 @@ model JobSource {
 }
 
 model Job {
-  id                      String                  @id @default(uuid()) @db.Uuid
-  title                   String
-  company                 String
-  description             String?
-  canonicalUrl            String                  @unique
-  applicationUrl          String?
-  normalizedTitle         String
-  normalizedCompany       String
-  normalizedLocationKey   String?
-  canonicalApplicationUrl String?
-  normalizationVersion    String?
-  normalizedAt            DateTime?               @db.Timestamptz(3)
-  normalizationIssues     Json?
-  normalizedPayload       Json?
-  locations               Json
-  remotePolicy            String?
-  employmentType          String?
-  seniority               String?
-  salaryMinimum           Decimal?                @db.Decimal(14, 2)
-  salaryMaximum           Decimal?                @db.Decimal(14, 2)
-  salaryCurrency          String?
-  salaryPeriod            String?
-  requiredExperience      Json?
-  requiredEducation       String?
-  requiredLanguages       Json
-  skills                  Json
-  normalizedSkills        Json
-  publishedAt             DateTime?               @db.Timestamptz(3)
-  expiresAt               DateTime?               @db.Timestamptz(3)
-  firstSeenAt             DateTime                @db.Timestamptz(3)
-  lastSeenAt              DateTime                @db.Timestamptz(3)
-  lastCollectedAt         DateTime                @db.Timestamptz(3)
-  currentStatus           JobStatus               @default(NEW)
-  metadata                Json?
-  createdAt               DateTime                @default(now()) @db.Timestamptz(3)
-  updatedAt               DateTime                @updatedAt @db.Timestamptz(3)
-  sourceReferences        JobSourceReference[]
-  revisions               JobRevision[]
-  fingerprints            JobFingerprint[]
-  scores                  JobScore[]
-  recommendations         Recommendation[]
-  statusHistory           JobStatusHistory[]
-  processingDecisions     JobProcessingDecision[] @relation("ProcessedJob")
-  primaryForDecisions     JobProcessingDecision[] @relation("PrimaryDuplicateJob")
+  id                        String                     @id @default(uuid()) @db.Uuid
+  title                     String
+  company                   String
+  description               String?
+  canonicalUrl              String                     @unique
+  applicationUrl            String?
+  normalizedTitle           String
+  normalizedCompany         String
+  normalizedLocationKey     String?
+  canonicalApplicationUrl   String?
+  normalizationVersion      String?
+  normalizedAt              DateTime?                  @db.Timestamptz(3)
+  normalizationIssues       Json?
+  normalizedPayload         Json?
+  locations                 Json
+  remotePolicy              String?
+  employmentType            String?
+  seniority                 String?
+  salaryMinimum             Decimal?                   @db.Decimal(14, 2)
+  salaryMaximum             Decimal?                   @db.Decimal(14, 2)
+  salaryCurrency            String?
+  salaryPeriod              String?
+  requiredExperience        Json?
+  requiredEducation         String?
+  requiredLanguages         Json
+  skills                    Json
+  normalizedSkills          Json
+  publishedAt               DateTime?                  @db.Timestamptz(3)
+  expiresAt                 DateTime?                  @db.Timestamptz(3)
+  firstSeenAt               DateTime                   @db.Timestamptz(3)
+  lastSeenAt                DateTime                   @db.Timestamptz(3)
+  lastCollectedAt           DateTime                   @db.Timestamptz(3)
+  currentStatus             JobStatus                  @default(NEW)
+  metadata                  Json?
+  createdAt                 DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime                   @updatedAt @db.Timestamptz(3)
+  sourceReferences          JobSourceReference[]
+  revisions                 JobRevision[]
+  fingerprints              JobFingerprint[]
+  scores                    JobScore[]
+  recommendations           Recommendation[]
+  statusHistory             JobStatusHistory[]
+  processingDecisions       JobProcessingDecision[]    @relation("ProcessedJob")
+  primaryForDecisions       JobProcessingDecision[]    @relation("PrimaryDuplicateJob")
+  recommendationEvaluations RecommendationEvaluation[]
 
   @@index([currentStatus])
   @@index([normalizedCompany])
@@ -132,30 +133,31 @@ model JobProcessingRun {
 }
 
 model JobProcessingDecision {
-  id                    String           @id @default(uuid()) @db.Uuid
-  jobId                 String           @db.Uuid
-  runId                 String           @db.Uuid
-  primaryJobId          String?          @db.Uuid
-  inputRevisionNumber   Int
-  normalizationVersion  String
-  fingerprintVersion    Int
-  filterRulesVersion    String
-  configFingerprint     String
-  processingStatus      String
-  processingFingerprint String?
-  duplicateDecision     String?
-  duplicateEvidence     Json?
-  hardFilterDecision    String?
-  hardFilterReasons     Json?
-  normalizationIssues   Json?
-  errorCode             String?
-  errorMessage          String?
-  processedAt           DateTime         @db.Timestamptz(3)
-  createdAt             DateTime         @default(now()) @db.Timestamptz(3)
-  job                   Job              @relation("ProcessedJob", fields: [jobId], references: [id], onDelete: Cascade)
-  run                   JobProcessingRun @relation(fields: [runId], references: [id], onDelete: Restrict)
-  primaryJob            Job?             @relation("PrimaryDuplicateJob", fields: [primaryJobId], references: [id], onDelete: SetNull)
-  scores                JobScore[]
+  id                        String                     @id @default(uuid()) @db.Uuid
+  jobId                     String                     @db.Uuid
+  runId                     String                     @db.Uuid
+  primaryJobId              String?                    @db.Uuid
+  inputRevisionNumber       Int
+  normalizationVersion      String
+  fingerprintVersion        Int
+  filterRulesVersion        String
+  configFingerprint         String
+  processingStatus          String
+  processingFingerprint     String?
+  duplicateDecision         String?
+  duplicateEvidence         Json?
+  hardFilterDecision        String?
+  hardFilterReasons         Json?
+  normalizationIssues       Json?
+  errorCode                 String?
+  errorMessage              String?
+  processedAt               DateTime                   @db.Timestamptz(3)
+  createdAt                 DateTime                   @default(now()) @db.Timestamptz(3)
+  job                       Job                        @relation("ProcessedJob", fields: [jobId], references: [id], onDelete: Cascade)
+  run                       JobProcessingRun           @relation(fields: [runId], references: [id], onDelete: Restrict)
+  primaryJob                Job?                       @relation("PrimaryDuplicateJob", fields: [primaryJobId], references: [id], onDelete: SetNull)
+  scores                    JobScore[]
+  recommendationEvaluations RecommendationEvaluation[]
 
   @@unique([jobId, inputRevisionNumber, normalizationVersion, fingerprintVersion, filterRulesVersion, configFingerprint])
   @@index([runId])
@@ -301,19 +303,50 @@ model JobScore {
 }
 
 model RecommendationBatch {
-  id                       String           @id @default(uuid()) @db.Uuid
-  inputHash                String           @unique
-  evaluationTime           DateTime         @db.Timestamptz(3)
+  id                       String                     @id @default(uuid()) @db.Uuid
+  inputHash                String                     @unique
+  evaluationTime           DateTime                   @db.Timestamptz(3)
   requestedLimit           Int
   selectedCount            Int
   configurationFingerprint String
   scoringVersion           String
   selectorVersion          String
-  createdAt                DateTime         @default(now()) @db.Timestamptz(3)
+  createdAt                DateTime                   @default(now()) @db.Timestamptz(3)
   recommendations          Recommendation[]
+  evaluations              RecommendationEvaluation[]
 
   @@index([evaluationTime])
   @@index([configurationFingerprint])
+}
+
+model RecommendationEvaluation {
+  id                   String                @id @default(uuid()) @db.Uuid
+  batchId              String                @db.Uuid
+  jobId                String                @db.Uuid
+  processingDecisionId String                @db.Uuid
+  inputRevisionNumber  Int
+  outcome              String
+  exclusionReason      String?
+  threshold            Decimal               @db.Decimal(7, 4)
+  selectedTrackId      String?
+  totalScore           Decimal?              @db.Decimal(7, 4)
+  candidateFitScore    Decimal?              @db.Decimal(7, 4)
+  opportunityScore     Decimal?              @db.Decimal(7, 4)
+  completeness         Decimal?              @db.Decimal(7, 4)
+  components           Json?
+  trackEvaluations     Json
+  positiveReasons      Json?
+  concerns             Json?
+  missingData          Json?
+  createdAt            DateTime              @default(now()) @db.Timestamptz(3)
+  batch                RecommendationBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  job                  Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  processingDecision   JobProcessingDecision @relation(fields: [processingDecisionId], references: [id], onDelete: Restrict)
+
+  @@unique([batchId, jobId])
+  @@index([batchId, outcome])
+  @@index([jobId, createdAt])
+  @@index([processingDecisionId])
 }
 
 model ScoreComponent {

@@ -16,6 +16,7 @@ export interface RecommendationCandidateRecord {
   readonly sourceIds: readonly string[];
   readonly source: ScoringSourceContext & {
     readonly trackIds: readonly string[];
+    readonly trackPolicy?: import('../../domain/index.js').SourceTrackPolicy;
   };
 }
 
@@ -35,6 +36,24 @@ export interface RecommendationBatchWrite {
   readonly scoringVersion: string;
   readonly selectorVersion: string;
   readonly items: readonly RecommendationBatchItemWrite[];
+  readonly evaluations: readonly RecommendationEvaluationWrite[];
+}
+
+export type RecommendationEvaluationOutcome =
+  | 'SELECTED'
+  | 'BELOW_MINIMUM_SCORE'
+  | 'NO_VALID_TRACK_MATCH'
+  | 'SELECTOR_EXCLUDED';
+
+export interface RecommendationEvaluationWrite {
+  readonly jobId: string;
+  readonly processingDecisionId: string;
+  readonly inputRevisionNumber: number;
+  readonly outcome: RecommendationEvaluationOutcome;
+  readonly exclusionReason?: string;
+  readonly threshold: number;
+  readonly score?: ScoreResult;
+  readonly trackEvaluations: readonly import('../../domain/index.js').TrackEvaluationResult[];
 }
 
 export interface PersistedRecommendationItem extends RecommendationBatchItemWrite {
@@ -49,6 +68,7 @@ export interface PersistedRecommendationBatch {
   readonly evaluationTime: string;
   readonly requestedLimit: number;
   readonly selectedCount: number;
+  readonly evaluatedCount?: number;
   readonly configurationFingerprint: string;
   readonly scoringVersion: string;
   readonly selectorVersion: string;

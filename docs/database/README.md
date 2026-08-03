@@ -27,6 +27,15 @@ existing transaction that updates `Job.currentStatus` and appends immutable
 `JobStatusHistory`. A process-local run lock avoids redundant persisted state
 for the single-user V1 server.
 
+Migration `20260803160000_candidate_matching_v2_diagnostics` adds the bounded,
+immutable `RecommendationEvaluation` rows owned by a recommendation batch. One
+row per batch/job records the processing revision, outcome, threshold, optional
+best-track scores, complete alternative track evaluations, and explainability
+JSON. Batch deletion cascades to diagnostics; job and processing-decision links
+preserve authoritative provenance. Selected `JobScore` and `Recommendation`
+rows remain unchanged, and historical batches without evaluations remain
+compatible.
+
 `npm run db:down` stops the main service without deleting its named volume. `docker compose down --volumes` destroys local developer data and must be deliberate. Application code provides no hard-delete workflow.
 
 For the isolated test database, follow [database test guidance](../testing/database-tests.md). Local/test passwords in Compose and CI are development-only defaults and must never be reused for production.
