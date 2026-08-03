@@ -2,6 +2,7 @@ import type { HardFilterConfiguration } from './search-configuration.js';
 import {
   NORMALIZATION_VERSION,
   type EnrichedNormalizedJob,
+  type ExtractedRemoteFact,
   type NormalizationIssue,
   type NormalizationResult,
   type NormalizedEducationRequirement,
@@ -15,6 +16,7 @@ import {
   type WorkAuthorizationRequirement,
 } from './job-processing.js';
 import type { EducationLevel, SeniorityLevel } from './categories.js';
+import { analyzeJobDescription } from './job-description-analysis.js';
 import { normalizePublicUrlValue } from './public-url.js';
 
 const COUNTRY_ALIASES: Readonly<Record<string, string>> = {
@@ -121,8 +123,16 @@ export function normalizeJobForProcessing(
   }
   const seniority = detectSeniority(cleanedTitle);
   const normalizedTitle = removeSeniority(cleanedTitle, seniority?.level);
-  const location = normalizeLocation(input, issues);
   const description = input.description?.slice(0, 100_000);
+  const descriptionAnalysis = analyzeJobDescription(
+    description,
+    input.metadata,
+  );
+  const location = normalizeLocation(
+    input,
+    issues,
+    descriptionAnalysis.remotePolicies[0],
+  );
   if (input.description !== undefined && input.description.length > 100_000)
     issues.push({
       code: 'INPUT_TRUNCATED',
@@ -133,7 +143,13 @@ export function normalizeJobForProcessing(
   const industry = metadataString(input.metadata, 'industry', 500);
   const department = metadataString(input.metadata, 'department', 500);
   const office = metadataString(input.metadata, 'office', 500);
-  const salary = normalizeSalary(input, issues);
+  const salary = normalizeSalary(
+    input,
+    issues,
+    descriptionAnalysis.salaryMentions[0]?.value,
+  );
+  const employmentType =
+    input.employmentType ?? descriptionAnalysis.employmentTypes[0]?.value;
   const job: EnrichedNormalizedJob = {
     id: input.id,
     inputRevisionNumber: input.inputRevisionNumber,
@@ -158,17 +174,47 @@ export function normalizeJobForProcessing(
       configuration.companyLegalSuffixes,
     ),
     location,
-    ...(input.employmentType === undefined
-      ? {}
-      : { employmentType: input.employmentType }),
+    ...(employmentType === undefined ? {} : { employmentType }),
     ...(industry === undefined ? {} : { industry }),
     ...(department === undefined ? {} : { department }),
     ...(office === undefined ? {} : { office }),
-    experienceRequirements: extractExperience(description),
-    educationRequirements: extractEducation(description),
-    languageRequirements: extractLanguages(description, issues),
-    skillRequirements: extractSkills(description),
-    workAuthorizationRequirements: extractAuthorization(description),
+    experienceRequirements: uniqueBy(
+      [
+        ...descriptionAnalysis.experienceRequirements,
+        ...extractExperience(description),
+      ],
+      (item) =>
+        `${item.minimumYears ?? ''}|${item.maximumYears ?? ''}|${item.level}`,
+    ),
+    educationRequirements: uniqueBy(
+      [
+        ...descriptionAnalysis.educationRequirements,
+        ...extractEducation(description),
+      ],
+      (item) => `${item.level}|${item.requirement}`,
+    ),
+    languageRequirements: uniqueBy(
+      [
+        ...descriptionAnalysis.languageRequirements,
+        ...extractLanguages(description, issues),
+      ],
+      (item) => `${item.code}|${item.requirement}|${item.proficiency}`,
+    ),
+    skillRequirements: uniqueBy(
+      [
+        ...descriptionAnalysis.technologyRequirements,
+        ...extractSkills(description),
+      ],
+      (item) => item.canonicalName,
+    ),
+    workAuthorizationRequirements: uniqueBy(
+      [
+        ...descriptionAnalysis.workAuthorizationRequirements,
+        ...extractAuthorization(description),
+      ],
+      (item) => item.evidence,
+    ),
+    descriptionAnalysis,
     ...(description === undefined ? {} : { description }),
     ...(input.salaryMinimum === undefined
       ? {}
@@ -198,8 +244,10 @@ export function normalizeJobForProcessing(
 function normalizeSalary(
   input: ProcessableJob,
   issues: NormalizationIssue[],
+  extractedSalaryText?: string,
 ): NormalizedSalary | undefined {
-  const originalText = metadataString(input.metadata, 'salaryText');
+  const originalText =
+    metadataString(input.metadata, 'salaryText') ?? extractedSalaryText;
   if (input.salaryMinimum !== undefined || input.salaryMaximum !== undefined) {
     return {
       ...(input.salaryMinimum === undefined
@@ -226,30 +274,51 @@ function normalizeSalary(
     };
   }
   if (originalText === undefined) return undefined;
-  const match =
-    /(?:\b(EUR|USD|GBP)\b|([€$£]))\s*([\d,.]+)(?:\s*[–-]\s*(?:\b(?:EUR|USD|GBP)\b|[€$£])?\s*([\d,.]+))?/iu.exec(
-      originalText,
+  const parsed = parseSalaryText(originalText);
+  if (parsed === undefined) return unparseableSalary(originalText, issues);
+  return {
+    minimumAmount: parsed.minimumAmount,
+    ...(parsed.maximumAmount === undefined
+      ? {}
+      : { maximumAmount: parsed.maximumAmount }),
+    currency: parsed.currency,
+    period: salaryPeriod(originalText),
+    grossNet: salaryGrossNet(originalText),
+    kind: parsed.maximumAmount === undefined ? 'EXACT' : 'RANGE',
+    originalText,
+    parsingStatus: 'PARSED',
+  };
+}
+
+function parseSalaryText(value: string):
+  | {
+      readonly minimumAmount: number;
+      readonly maximumAmount?: number;
+      readonly currency: string;
+    }
+  | undefined {
+  const prefix =
+    /(?:\b(EUR|USD|GBP|CHF|CAD|AUD)\b|([€$£]))\s*([\d,.]+)\s*([kK])?(?:\s*(?:[-–—]|to)\s*(?:\b(?:EUR|USD|GBP|CHF|CAD|AUD)\b|[€$£])?\s*([\d,.]+)\s*([kK])?)?/iu.exec(
+      value,
     );
-  if (match === null) return unparseableSalary(originalText, issues);
-  const minimumAmount = parseSalaryAmount(match[3]);
-  const maximumAmount = parseSalaryAmount(match[4]);
-  if (
-    minimumAmount === undefined ||
-    (match[4] !== undefined && maximumAmount === undefined)
-  )
-    return unparseableSalary(originalText, issues);
-  const currency =
-    match[1]?.toUpperCase() ??
-    (match[2] === '€' ? 'EUR' : match[2] === '$' ? 'USD' : 'GBP');
+  const suffix =
+    /([\d,.]+)\s*([kK])?(?:\s*(?:[-–—]|to)\s*([\d,.]+)\s*([kK])?)?\s*\b(EUR|USD|GBP|CHF|CAD|AUD)\b/iu.exec(
+      value,
+    );
+  const minimumAmount = parseSalaryAmount(
+    prefix?.[3] ?? suffix?.[1],
+    prefix?.[4] ?? suffix?.[2],
+  );
+  const maximumAmount = parseSalaryAmount(
+    prefix?.[5] ?? suffix?.[3],
+    prefix?.[6] ?? suffix?.[4],
+  );
+  const currency = currencyCode(prefix?.[1] ?? prefix?.[2] ?? suffix?.[5]);
+  if (minimumAmount === undefined || currency === undefined) return undefined;
   return {
     minimumAmount,
     ...(maximumAmount === undefined ? {} : { maximumAmount }),
     currency,
-    period: salaryPeriod(originalText),
-    grossNet: salaryGrossNet(originalText),
-    kind: maximumAmount === undefined ? 'EXACT' : 'RANGE',
-    originalText,
-    parsingStatus: 'PARSED',
   };
 }
 
@@ -273,13 +342,24 @@ function unparseableSalary(
   };
 }
 
-function parseSalaryAmount(value: string | undefined): number | undefined {
+function parseSalaryAmount(
+  value: string | undefined,
+  multiplier: string | undefined = undefined,
+): number | undefined {
   if (value === undefined) return undefined;
   const normalized = value
     .replace(/[,.](?=\d{3}(?:\D|$))/gu, '')
     .replace(',', '.');
-  const amount = Number(normalized);
+  const amount = Number(normalized) * (multiplier === undefined ? 1 : 1_000);
   return Number.isFinite(amount) && amount >= 0 ? amount : undefined;
+}
+
+function currencyCode(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (value === '€') return 'EUR';
+  if (value === '$') return 'USD';
+  if (value === '£') return 'GBP';
+  return value.toUpperCase();
 }
 
 function salaryPeriod(value: string | undefined): NormalizedSalary['period'] {
@@ -289,6 +369,7 @@ function salaryPeriod(value: string | undefined): NormalizedSalary['period'] {
   if (/\b(?:week|weekly)\b/iu.test(value)) return 'WEEK';
   if (/\b(?:month|monthly)\b/iu.test(value)) return 'MONTH';
   if (/\b(?:year|annual|annually)\b/iu.test(value)) return 'YEAR';
+  if (/\b(?:annum|yr)\b/iu.test(value)) return 'YEAR';
   if (/\bcontract\b/iu.test(value)) return 'CONTRACT';
   return 'UNSPECIFIED';
 }
@@ -317,6 +398,7 @@ export function normalizeIdentityUrl(
 function normalizeLocation(
   input: ProcessableJob,
   issues: NormalizationIssue[],
+  extractedRemote: ExtractedRemoteFact | undefined,
 ): NormalizedLocation {
   const metadataLocation = metadataString(
     input.metadata,
@@ -330,12 +412,19 @@ function normalizeLocation(
       ? undefined
       : [first.city, first.region, first.country].filter(Boolean).join(', '));
   const text = clean(originalText ?? '');
-  const textualPolicy = /\bhybrid\b/iu.test(text)
+  const policyText = clean(
+    [text, extractedRemote?.evidence].filter(Boolean).join(' '),
+  );
+  const textualPolicy = /\bhybrid\b/iu.test(policyText)
     ? 'hybrid'
-    : /\bremote\b/iu.test(text)
+    : /\bremote\b/iu.test(policyText)
       ? 'remote'
       : undefined;
-  const policy = input.remotePolicy ?? textualPolicy ?? 'unspecified';
+  const policy =
+    input.remotePolicy ??
+    extractedRemote?.value ??
+    textualPolicy ??
+    'unspecified';
   if (
     input.remotePolicy !== undefined &&
     textualPolicy !== undefined &&
@@ -346,9 +435,9 @@ function normalizeLocation(
       field: 'location',
       severity: 'WARNING',
       details: 'Structured and textual remote policies conflict.',
-      evidence: text,
+      evidence: policyText,
     });
-  const textualCountry = findCountry(text);
+  const textualCountry = findCountry(policyText);
   const countryCodes = [
     ...input.locations.flatMap((location) => {
       const code = normalizeCountry(location.country);
@@ -360,15 +449,19 @@ function normalizeLocation(
   const remoteScope =
     policy !== 'remote'
       ? 'UNSPECIFIED'
-      : /\bworldwide|anywhere\b/iu.test(text)
+      : extractedRemote?.scope === 'WORLDWIDE' ||
+          /\bworldwide|anywhere\b/iu.test(policyText)
         ? 'WORLDWIDE'
-        : /\beea\b/iu.test(text)
+        : extractedRemote?.scope === 'EEA' || /\beea\b/iu.test(policyText)
           ? 'EEA'
-          : /\beu(?:ropean union)?\b/iu.test(text)
+          : extractedRemote?.scope === 'EU' ||
+              /\beu(?:ropean union)?\b/iu.test(policyText)
             ? 'EU'
-            : /\beurope\b/iu.test(text)
+            : extractedRemote?.scope === 'EUROPE' ||
+                /\beurope\b/iu.test(policyText)
               ? 'EUROPE'
-              : /\b(?:time ?zone|utc[+-])\b/iu.test(text)
+              : extractedRemote?.scope === 'TIMEZONE' ||
+                  /\b(?:time ?zone|utc[+-])\b/iu.test(policyText)
                 ? 'TIMEZONE'
                 : countryCode === undefined
                   ? 'UNSPECIFIED'

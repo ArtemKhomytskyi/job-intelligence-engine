@@ -34,6 +34,7 @@ import {
   type HtmlPageAcquirer,
 } from '../../src/application/index.js';
 import {
+  NORMALIZATION_VERSION,
   createPercentage,
   normalizeJobForProcessing,
   type NormalizedJobPosting,
@@ -503,7 +504,7 @@ describe('PostgreSQL persistence repositories', () => {
       ]),
     );
     expect(storedJob).toMatchObject({
-      normalizationVersion: 'normalization-v1',
+      normalizationVersion: NORMALIZATION_VERSION,
       normalizedLocationKey: 'hybrid|unspecified|de::berlin',
     });
     expect(storedJob.normalizedPayload).not.toBeNull();
@@ -579,7 +580,7 @@ describe('PostgreSQL persistence repositories', () => {
       repositories.processing.createRun({
         startedAt: '2026-07-29T12:00:00.000Z',
         initiatedBy: 'rollback-test',
-        normalizationVersion: 'normalization-v1',
+        normalizationVersion: NORMALIZATION_VERSION,
         fingerprintVersion: 1,
         filterRulesVersion: 'hard-filters-v1',
         configFingerprint: 'rollback-config',
@@ -590,7 +591,7 @@ describe('PostgreSQL persistence repositories', () => {
         await repositories.processing.saveDecision({
           jobId: normalized.job.id,
           inputRevisionNumber: normalized.job.inputRevisionNumber,
-          normalizationVersion: 'normalization-v1',
+          normalizationVersion: NORMALIZATION_VERSION,
           fingerprintVersion: 1,
           filterRulesVersion: 'hard-filters-v1',
           configFingerprint: 'rollback-config',

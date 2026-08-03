@@ -10,6 +10,7 @@
 - [008: Real source readiness and first-run setup](008-real-source-readiness.md)
 - [009: Pre-real-source audit](009-pre-real-source-audit.md)
 - [010: Connection-bound network hardening](010-connection-bound-network-hardening.md)
+- [011: Layered deterministic job extraction](011-layered-deterministic-job-extraction.md)
 
 This directory holds living plans for substantial implementation work. Copy `TEMPLATE.md`, replace every prompt with concrete project facts, and update it throughout implementation. Keep completed plans as decision and verification history unless they contain sensitive information; sensitive information must never enter a plan.
 

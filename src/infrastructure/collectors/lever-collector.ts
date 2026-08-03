@@ -21,6 +21,15 @@ const jobSchema = z
     createdAt: z.number().optional(),
     description: z.string().optional(),
     descriptionPlain: z.string().optional(),
+    additional: z.string().optional(),
+    lists: z
+      .array(
+        z.object({
+          text: z.string().optional(),
+          content: z.string().optional(),
+        }),
+      )
+      .optional(),
     workplaceType: z.string().optional(),
     categories: z
       .object({
@@ -83,7 +92,7 @@ export class LeverCollector implements JobCollector {
       }
       seen.add(job.id);
       try {
-        const description = job.descriptionPlain ?? job.description;
+        const description = leverDescription(job);
         candidates.push(
           normalizeCollectedJob(
             source,
@@ -135,4 +144,43 @@ export class LeverCollector implements JobCollector {
       durationMs: Math.max(0, this.clock.now().getTime() - started),
     };
   }
+}
+
+function leverDescription(job: {
+  readonly description?: string | undefined;
+  readonly descriptionPlain?: string | undefined;
+  readonly additional?: string | undefined;
+  readonly lists?:
+    | readonly {
+        readonly text?: string | undefined;
+        readonly content?: string | undefined;
+      }[]
+    | undefined;
+}): string | undefined {
+  const sections = [
+    job.description ?? job.descriptionPlain,
+    ...(job.lists ?? []).map((list) =>
+      [
+        list.text === undefined
+          ? undefined
+          : `<h2>${escapeHtml(list.text)}</h2>`,
+        list.content,
+      ]
+        .filter((value): value is string => value !== undefined)
+        .join('\n'),
+    ),
+    job.additional,
+  ].filter(
+    (value): value is string => value !== undefined && value.trim().length > 0,
+  );
+  return sections.length === 0 ? undefined : sections.join('\n');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/gu, '&amp;')
+    .replace(/</gu, '&lt;')
+    .replace(/>/gu, '&gt;')
+    .replace(/"/gu, '&quot;')
+    .replace(/'/gu, '&#39;');
 }

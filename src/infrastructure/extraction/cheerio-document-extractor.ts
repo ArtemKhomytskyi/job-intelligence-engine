@@ -207,6 +207,7 @@ function decodeJobPosting(
     extractionStrategy: 'json-ld',
     confidence: 0.95,
     evidence: evidence.map((item) => ({ ...item })),
+    structuredJobData: structuredJobData(object),
     ...(object['directApply'] === undefined
       ? {}
       : { directApply: object['directApply'] === true }),
@@ -222,6 +223,9 @@ function decodeJobPosting(
     ...(safeJson(object['baseSalary']) === undefined
       ? {}
       : { baseSalary: safeJson(object['baseSalary']) ?? null }),
+    ...(baseSalaryText(object['baseSalary']) === undefined
+      ? {}
+      : { salaryText: baseSalaryText(object['baseSalary']) ?? '' }),
   };
   return {
     title,
@@ -262,12 +266,9 @@ function extractSemanticJob(
       document('[itemprop="hiringOrganization"]').first().text(),
   );
   const company = companyFromPage ?? cleanText(configuredCompany);
-  const descriptionElement = document(
-    '[itemprop="description"], [class*="job-description" i], [id*="job-description" i], article, main',
-  ).first();
   const description = cleanupSelectedHtml(
     document,
-    descriptionElement.html() ?? '',
+    semanticDescriptionHtml(document),
   );
   const applicationUrl = explicitApplicationUrl(document, pageUrl);
   if (
@@ -336,6 +337,21 @@ function extractSemanticJob(
   };
 }
 
+function semanticDescriptionHtml(document: CheerioAPI): string {
+  const itemprop = document('[itemprop="description"]').first();
+  if (itemprop.length > 0) return itemprop.html() ?? '';
+  const selector = '[class*="job-description" i], [id*="job-description" i]';
+  const sections = document(selector)
+    .filter(
+      (_index, element) => document(element).parents(selector).length === 0,
+    )
+    .slice(0, 20)
+    .toArray();
+  if (sections.length > 0)
+    return sections.map((element) => document(element).html() ?? '').join('\n');
+  return document('article, main').first().html() ?? '';
+}
+
 function cleanupSelectedHtml(
   _document: CheerioAPI,
   html: string,
@@ -345,6 +361,7 @@ function cleanupSelectedHtml(
   fragment(
     'script,style,noscript,svg,canvas,iframe,template,nav,footer,[hidden],[aria-hidden="true"],.cookie-banner,[class*="cookie" i]',
   ).remove();
+  fragment('li').prepend('- ');
   fragment('br,p,li,h1,h2,h3,h4,h5,h6,tr,dt,dd').append('\n');
   const value = fragment('main')
     .text()
@@ -619,4 +636,61 @@ function safeJson(value: unknown): JsonValue | undefined {
       : undefined;
   }
   return undefined;
+}
+
+function structuredJobData(
+  object: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, JsonValue>> {
+  const keys = [
+    'skills',
+    'qualifications',
+    'experienceRequirements',
+    'educationRequirements',
+    'responsibilities',
+    'jobBenefits',
+    'incentiveCompensation',
+  ] as const;
+  return Object.fromEntries(
+    keys.flatMap((key) => {
+      const value = safeJson(object[key]);
+      return value === undefined ? [] : [[key, value] as const];
+    }),
+  );
+}
+
+function baseSalaryText(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const currency = stringValue(value['currency']);
+  const salaryValue = value['value'];
+  if (typeof salaryValue === 'number' && Number.isFinite(salaryValue))
+    return [currency, String(salaryValue)].filter(Boolean).join(' ');
+  if (!isRecord(salaryValue)) return undefined;
+  const minimum = numberValue(salaryValue['minValue']);
+  const maximum = numberValue(salaryValue['maxValue']);
+  const exact = numberValue(salaryValue['value']);
+  const amount =
+    minimum === undefined
+      ? exact === undefined
+        ? maximum === undefined
+          ? undefined
+          : String(maximum)
+        : String(exact)
+      : maximum === undefined
+        ? String(minimum)
+        : `${minimum}-${maximum}`;
+  if (amount === undefined) return undefined;
+  const unit = stringValue(salaryValue['unitText']);
+  return [currency, amount, unit === undefined ? undefined : `per ${unit}`]
+    .filter((item): item is string => item !== undefined)
+    .join(' ');
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+      ? Number.isFinite(Number(value))
+        ? Number(value)
+        : undefined
+      : undefined;
 }

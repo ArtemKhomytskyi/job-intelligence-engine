@@ -293,7 +293,7 @@ function normalizedJob(id: string): EnrichedNormalizedJob {
     publishedAt: '2026-07-30T10:00:00.000Z',
     firstSeenAt: '2026-07-30T10:00:00.000Z',
     lastCollectedAt: '2026-07-30T11:00:00.000Z',
-    normalizationVersion: 'normalization-v1',
+    normalizationVersion: 'normalization-v2',
     normalizedAt: '2026-07-30T11:00:00.000Z',
   };
 }

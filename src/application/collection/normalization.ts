@@ -26,6 +26,7 @@ export function htmlToPlainText(value: string): string | undefined {
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/giu, ' ')
     .replace(/<\s*br\s*\/?\s*>/giu, '\n')
+    .replace(/<li\b[^>]*>/giu, '\n- ')
     .replace(/<\/(?:div|li|p|section|h[1-6])\s*>/giu, '\n')
     .replace(/<[^>]+>/gu, ' ')
     .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/giu, (_match, entity: string) =>
@@ -151,10 +152,13 @@ function mapEmploymentType(
     contractor: 'contract',
     'full-time': 'full-time',
     'full time': 'full-time',
+    full_time: 'full-time',
+    fulltime: 'full-time',
     internship: 'internship',
     intern: 'internship',
     'part-time': 'part-time',
     'part time': 'part-time',
+    part_time: 'part-time',
     temporary: 'temporary',
   };
   return mappings[normalized];
@@ -168,6 +172,8 @@ function mapRemotePolicy(value: string | undefined): RemotePolicy | undefined {
     'on-site': 'onsite',
     onsite: 'onsite',
     remote: 'remote',
+    telecommute: 'remote',
+    'remote-first': 'remote',
   };
   return mappings[normalized];
 }

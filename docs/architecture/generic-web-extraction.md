@@ -27,6 +27,6 @@ Application owns `HtmlPageAcquirer`, `HtmlDocumentExtractor`, and `BrowserPageRe
   strict method/resource policy, and request/popup/frame bounds.
 - CAPTCHA, login, and access-denied pages are classified and not bypassed. Known Greenhouse and Lever hosts produce a diagnostic recommending their dedicated collector.
 
-Canonical URLs prefer valid same-origin Schema.org `url`, `mainEntityOfPage`, HTML canonical, then final response URL. Known ATS application/canonical links may cross origin. Field metadata records strategy, confidence, and evidence; it is explanatory, not a suitability score.
+Canonical URLs prefer valid same-origin Schema.org `url`, `mainEntityOfPage`, HTML canonical, then final response URL. Known ATS application/canonical links may cross origin. Safe Schema.org skills, qualifications, experience, education, responsibilities, benefits, incentive compensation, and salary evidence are retained for `normalization-v2`. Split semantic description containers are combined in document order, and headings/list markers survive cleanup. Field metadata records strategy, confidence, and evidence; it is explanatory, not a suitability score.
 
 See the [generic collector guide](../collectors/generic-web.md), [browser tests](../testing/browser-tests.md), and [real-site review policy](../testing/generic-real-site-review.md).

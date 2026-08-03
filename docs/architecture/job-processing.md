@@ -4,9 +4,26 @@ Chunk 5 processes the current persisted `Job` snapshot and latest revision numbe
 
 ## Pipeline
 
-`ProcessCollectedJobs` loads at most 10,000 jobs in stable `lastCollectedAt, id` order. Each job is normalized with `normalization-v1`, classified by duplicate evidence, evaluated by `hard-filters-v1` when not a confirmed duplicate, and persisted in a per-job transaction. One content problem does not stop other jobs; a persistence failure that prevents recording the error fails the run.
+`ProcessCollectedJobs` loads at most 10,000 jobs in stable `lastCollectedAt, id` order. Each job is normalized with `normalization-v2`, classified by duplicate evidence, evaluated by `hard-filters-v1` when not a confirmed duplicate, and persisted in a per-job transaction. One content problem does not stop other jobs; a persistence failure that prevents recording the error fails the run.
 
-Normalization is pure and offline. It preserves original title, company, URLs, description, dates, and locations while deriving comparison keys, seniority evidence, remote scope, explicit requirements, skill aliases, authorization requirements, and salary structure. Description parsing is bounded to 100,000 characters. Static country/language/skill aliases and safe fixed regular expressions are used; there is no geocoding, fetching, browser use, arbitrary regex compilation, fuzzy matching, currency conversion, or annualization.
+Normalization is pure and offline. It preserves original title, company, URLs,
+description, dates, and locations while deriving comparison keys, seniority,
+remote scope, explicit requirements, technology categories, authorization, and
+salary structure. Description parsing is bounded to 100,000 characters and uses
+five enriching layers: structured source fields, semantic HTML, section
+detection, bullet analysis, and sentence rules. Facts carry bounded evidence and
+optional deterministic source/strategy/confidence provenance. Static
+country/language/technology aliases and safe fixed regular expressions are used;
+there is no geocoding, fetching, browser use, arbitrary source regex, fuzzy
+matching, currency conversion, annualization, external API, or LLM.
+
+`descriptionAnalysis` in the versioned normalized JSON payload contains
+certifications, benefits, responsibilities, required/preferred/nice-to-have
+qualifications, employment and contract evidence, travel, remote policy,
+sponsorship, clearance, relocation, and compensation mentions. Existing
+experience, education, language, skill, authorization, employment, location,
+and salary fields are enriched from the same analysis so filters and scoring do
+not need a new contract. See the [extraction pipeline audit](../audits/extraction-pipeline-audit.md).
 
 Salary parsing prefers collector-provided structured amounts. Optional `metadata.salaryText` is parsed only when it contains an explicit EUR/USD/GBP code or euro/dollar/pound symbol; unparseable text is preserved with `UNPARSEABLE_SALARY`. Employment type and ISO timestamps use the validated collector/storage contract rather than guessing from prose. Date-only parsing and arbitrary salary prose are intentionally unsupported.
 

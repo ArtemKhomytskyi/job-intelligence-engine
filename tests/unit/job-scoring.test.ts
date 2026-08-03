@@ -429,7 +429,7 @@ function job(
     publishedAt: '2026-07-29T12:00:00.000Z',
     firstSeenAt: '2026-07-29T12:00:00.000Z',
     lastCollectedAt: '2026-07-30T10:00:00.000Z',
-    normalizationVersion: 'normalization-v1',
+    normalizationVersion: 'normalization-v2',
     normalizedAt: '2026-07-30T10:00:00.000Z',
     ...overrides,
   };

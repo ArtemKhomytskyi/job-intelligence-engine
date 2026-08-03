@@ -74,5 +74,9 @@ describe('ATS collectors', () => {
       employmentType: 'full-time',
       remotePolicy: 'remote',
     });
+    expect(result.candidates[0]?.job.description).toContain('Requirements');
+    expect(result.candidates[0]?.job.description).toContain(
+      '- Three years of TypeScript experience.',
+    );
   });
 });

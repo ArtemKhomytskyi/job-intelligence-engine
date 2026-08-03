@@ -2,6 +2,7 @@ export * from './candidate-profile.js';
 export * from './categories.js';
 export * from './job-posting.js';
 export * from './job-processing.js';
+export * from './job-description-analysis.js';
 export * from './public-url.js';
 export * from './job-normalizer.js';
 export * from './hard-filters.js';

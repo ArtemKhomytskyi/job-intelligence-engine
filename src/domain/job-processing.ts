@@ -7,7 +7,7 @@ import type {
 } from './categories.js';
 import type { JobLocation, JsonValue } from './job-posting.js';
 
-export const NORMALIZATION_VERSION = 'normalization-v1';
+export const NORMALIZATION_VERSION = 'normalization-v2';
 export const FILTER_RULES_VERSION = 'hard-filters-v1';
 export const PROCESSING_FINGERPRINT_VERSION = 1;
 
@@ -22,6 +22,24 @@ export type RemoteScope =
   | 'REGION'
   | 'TIMEZONE'
   | 'UNSPECIFIED';
+
+export type DescriptionExtractionStrategy =
+  | 'StructuredData'
+  | 'SemanticSection'
+  | 'BulletPattern'
+  | 'SentencePattern'
+  | 'TechnologyDictionary'
+  | 'RegexYears'
+  | 'RegexEducation'
+  | 'RegexLanguage'
+  | 'RegexCompensation'
+  | 'RegexPolicy';
+
+export interface ExtractionProvenance {
+  readonly source: string;
+  readonly strategy: DescriptionExtractionStrategy;
+  readonly confidence: number;
+}
 
 export interface ProcessableJob {
   readonly id: string;
@@ -82,6 +100,7 @@ export interface NormalizedExperienceRequirement {
   readonly maximumYears?: number;
   readonly level: RequirementLevel;
   readonly evidence: string;
+  readonly extraction?: ExtractionProvenance;
 }
 
 export interface NormalizedEducationRequirement {
@@ -89,6 +108,7 @@ export interface NormalizedEducationRequirement {
   readonly requirement: RequirementLevel;
   readonly acceptsEquivalentExperience: boolean;
   readonly evidence: string;
+  readonly extraction?: ExtractionProvenance;
 }
 
 export interface NormalizedLanguageRequirement {
@@ -98,6 +118,7 @@ export interface NormalizedLanguageRequirement {
   readonly requirement: RequirementLevel;
   readonly nativeRequired: boolean;
   readonly evidence: string;
+  readonly extraction?: ExtractionProvenance;
 }
 
 export interface NormalizedSkillRequirement {
@@ -105,7 +126,18 @@ export interface NormalizedSkillRequirement {
   readonly originalSpelling: string;
   readonly requirement: RequirementLevel;
   readonly evidence: string;
+  readonly category?: TechnologyCategory;
+  readonly extraction?: ExtractionProvenance;
 }
+
+export type TechnologyCategory =
+  | 'PROGRAMMING_LANGUAGE'
+  | 'FRAMEWORK'
+  | 'CLOUD_PROVIDER'
+  | 'DATABASE'
+  | 'PLATFORM'
+  | 'PROTOCOL'
+  | 'PRACTICE';
 
 export interface NormalizedSalary {
   readonly minimumAmount?: number;
@@ -126,6 +158,62 @@ export interface WorkAuthorizationRequirement {
   readonly citizenshipOnly: boolean;
   readonly securityClearanceRequired: boolean;
   readonly evidence: string;
+  readonly extraction?: ExtractionProvenance;
+}
+
+export interface ExtractedTextFact {
+  readonly value: string;
+  readonly requirement: RequirementLevel;
+  readonly evidence: string;
+  readonly extraction: ExtractionProvenance;
+}
+
+export interface ExtractedEmploymentFact {
+  readonly value: EmploymentType;
+  readonly evidence: string;
+  readonly extraction: ExtractionProvenance;
+}
+
+export interface ExtractedRemoteFact {
+  readonly value: RemotePolicy;
+  readonly scope?: RemoteScope;
+  readonly evidence: string;
+  readonly extraction: ExtractionProvenance;
+}
+
+export interface ExtractedTravelRequirement {
+  readonly required: boolean;
+  readonly maximumPercentage?: number;
+  readonly evidence: string;
+  readonly extraction: ExtractionProvenance;
+}
+
+export interface ExtractedBooleanPolicy {
+  readonly value: boolean | 'UNKNOWN';
+  readonly evidence: string;
+  readonly extraction: ExtractionProvenance;
+}
+
+export interface JobDescriptionAnalysis {
+  readonly technologyRequirements: readonly NormalizedSkillRequirement[];
+  readonly experienceRequirements: readonly NormalizedExperienceRequirement[];
+  readonly educationRequirements: readonly NormalizedEducationRequirement[];
+  readonly languageRequirements: readonly NormalizedLanguageRequirement[];
+  readonly workAuthorizationRequirements: readonly WorkAuthorizationRequirement[];
+  readonly certifications: readonly ExtractedTextFact[];
+  readonly benefits: readonly ExtractedTextFact[];
+  readonly responsibilities: readonly ExtractedTextFact[];
+  readonly requiredQualifications: readonly ExtractedTextFact[];
+  readonly preferredQualifications: readonly ExtractedTextFact[];
+  readonly niceToHaveQualifications: readonly ExtractedTextFact[];
+  readonly employmentTypes: readonly ExtractedEmploymentFact[];
+  readonly contractTypes: readonly ExtractedTextFact[];
+  readonly remotePolicies: readonly ExtractedRemoteFact[];
+  readonly travelRequirements: readonly ExtractedTravelRequirement[];
+  readonly salaryMentions: readonly ExtractedTextFact[];
+  readonly visaSponsorship: readonly ExtractedBooleanPolicy[];
+  readonly securityClearance: readonly ExtractedBooleanPolicy[];
+  readonly relocationSupport: readonly ExtractedBooleanPolicy[];
 }
 
 export interface EnrichedNormalizedJob {
@@ -155,6 +243,7 @@ export interface EnrichedNormalizedJob {
   readonly languageRequirements: readonly NormalizedLanguageRequirement[];
   readonly skillRequirements: readonly NormalizedSkillRequirement[];
   readonly workAuthorizationRequirements: readonly WorkAuthorizationRequirement[];
+  readonly descriptionAnalysis?: JobDescriptionAnalysis;
   readonly description?: string;
   readonly salaryMinimum?: number;
   readonly salaryMaximum?: number;

@@ -29,7 +29,15 @@ This is a disabled documentation template. Copy it only into the ignored
 
 Allowed bounds are browser timeout 3,000–90,000 ms, links 1–200, and depth 0–2. A list at depth zero only extracts jobs embedded on its root page. Links must be same-origin job-like links or recognized Greenhouse/Lever links. Dedicated ATS collectors remain preferred when detected.
 
-The extractor supports Schema.org arrays and `@graph`, isolates malformed blocks/items, cleans executable and navigation markup from semantic descriptions, and records field evidence. It never attempts CAPTCHA/login bypass and does not run arbitrary evaluation code. Generic extraction is intentionally conservative and not guaranteed to work on every site.
+The extractor supports Schema.org arrays and `@graph`, isolates malformed
+blocks/items, combines split semantic description regions, cleans executable and
+navigation markup, and retains heading/list boundaries. Safe structured skills,
+qualifications, experience, education, responsibilities, benefits, compensation,
+and salary fields are forwarded to the layered deterministic analyzer. Every
+derived normalized fact can retain bounded evidence and fixed
+source/strategy/confidence provenance. It never attempts CAPTCHA/login bypass or
+runs arbitrary evaluation code. Generic extraction is intentionally
+conservative and not guaranteed to work on every site.
 
 For the controlled HTTP-only pilot, `allowBrowserFallback` must be false.
 Runtime validation rejects an enabled external generic source set to true with

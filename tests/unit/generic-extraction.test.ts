@@ -78,6 +78,32 @@ describe('generic document extraction', () => {
     expect(result.jobs[0]?.description).not.toContain('Navigation noise');
   });
 
+  it('combines split semantic description sections and preserves bullet boundaries', () => {
+    const result = extractor.extract(
+      `<main>
+        <h1>Platform Engineer</h1>
+        <div class="job-description-requirements">
+          <h2>Requirements</h2>
+          <ul><li>Five years of TypeScript experience.</li></ul>
+        </div>
+        <div class="job-description-benefits">
+          <h2>What we offer</h2>
+          <ul><li>Learning budget.</li></ul>
+        </div>
+        <a href="/apply">Apply now</a>
+      </main>`,
+      'https://example.test/jobs/platform',
+      'Synthetic Company',
+      10,
+    );
+    expect(result.jobs[0]?.description).toContain('Requirements');
+    expect(result.jobs[0]?.description).toContain(
+      '- Five years of TypeScript experience.',
+    );
+    expect(result.jobs[0]?.description).toContain('What we offer');
+    expect(result.jobs[0]?.description).toContain('- Learning budget.');
+  });
+
   it('discovers deterministic safe links, detects ATS hosts, app shells, and block pages', async () => {
     const list = extractor.extract(
       await fixture('semantic-job-list.html'),
@@ -134,7 +160,14 @@ describe('generic document extraction', () => {
           directApply: true,
           industry: 'Software',
           occupationalCategory: 'Engineering',
-          baseSalary: { currency: 'EUR', value: 100 },
+          skills: ['TypeScript', 'GraphQL'],
+          qualifications: 'Five years of experience required.',
+          responsibilities: 'Build deterministic services.',
+          jobBenefits: 'Learning budget.',
+          baseSalary: {
+            currency: 'EUR',
+            value: { minValue: 80000, maxValue: 100000, unitText: 'YEAR' },
+          },
         },
         { '@type': 'JobPosting', title: 'Incomplete' },
       ])}</script>`,
@@ -151,6 +184,15 @@ describe('generic document extraction', () => {
       publishedAt: '2026-07-01T00:00:00.000Z',
     });
     expect(result.jobs[0]).not.toHaveProperty('expiresAt');
+    expect(result.jobs[0]?.metadata).toMatchObject({
+      salaryText: 'EUR 80000-100000 per YEAR',
+      structuredJobData: {
+        skills: ['TypeScript', 'GraphQL'],
+        qualifications: 'Five years of experience required.',
+        responsibilities: 'Build deterministic services.',
+        jobBenefits: 'Learning budget.',
+      },
+    });
     expect(result.warnings).toContain(
       'A malformed or incomplete JobPosting object was skipped.',
     );

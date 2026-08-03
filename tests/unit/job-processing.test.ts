@@ -123,7 +123,7 @@ describe('processing normalization', () => {
     });
     expect(
       result.job.skillRequirements.map((item) => item.canonicalName),
-    ).toEqual(['PostgreSQL', 'Node.js']);
+    ).toEqual(['Node.js', 'PostgreSQL']);
   });
 
   it.each([
@@ -159,7 +159,7 @@ describe('processing normalization', () => {
     if (result.status !== 'SUCCESS') return;
     expect(
       result.job.skillRequirements.map((item) => item.canonicalName),
-    ).toEqual(['Python', 'R']);
+    ).toEqual(['Rust', 'R', 'Python']);
     expect(result.job.location).toMatchObject({
       countryCode: 'US',
       remoteScope: 'COUNTRY',
@@ -267,6 +267,8 @@ describe('processing normalization', () => {
     ['EUR 2000 monthly', 2000, undefined, 'MONTH', 'UNSPECIFIED'],
     ['EUR 1000 weekly', 1000, undefined, 'WEEK', 'UNSPECIFIED'],
     ['EUR 900 contract', 900, undefined, 'CONTRACT', 'UNSPECIFIED'],
+    ['CHF 90k-110k per annum', 90000, 110000, 'YEAR', 'UNSPECIFIED'],
+    ['80k-100k EUR per year', 80000, 100000, 'YEAR', 'UNSPECIFIED'],
   ] as const)(
     'parses explicit salary text %s',
     (salaryText, minimum, maximum, period, grossNet) => {

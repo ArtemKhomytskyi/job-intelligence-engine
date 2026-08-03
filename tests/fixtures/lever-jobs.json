@@ -6,6 +6,16 @@
     "applyUrl": "https://example.test/jobs/abc/apply",
     "createdAt": 1782892800000,
     "descriptionPlain": "Make useful things.",
+    "lists": [
+      {
+        "text": "Requirements",
+        "content": "<ul><li>Three years of TypeScript experience.</li><li>English B2 required.</li></ul>"
+      },
+      {
+        "text": "What we offer",
+        "content": "<ul><li>Learning budget.</li></ul>"
+      }
+    ],
     "workplaceType": "remote",
     "categories": {
       "location": "Europe",
