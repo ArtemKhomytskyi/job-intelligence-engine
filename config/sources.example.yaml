@@ -1,59 +1,51 @@
-# Source definitions are validated locally; validation performs no network requests.
+# Documentation templates only. These sources are disabled and cannot collect jobs.
+# Copy this file to the Git-ignored config/sources.yaml, replace every placeholder,
+# then enable only the real sources you intend JIE to contact.
 sources:
-  - id: example-greenhouse
+  - id: my-greenhouse-source
     type: greenhouse
-    enabled: true
-    displayName: Example Greenhouse Board
-    company: Example Company
-    requestTimeoutMs: 15000
-    requestsPerSecond: 2
-    tags:
-      - ats
+    enabled: false
+    displayName: Replace with company name
+    company: Replace with company name
+    tags: []
     trackIds:
       - data-science
-      - ai
     settings:
-      boardToken: example-company
-      boardUrl: https://boards.example.com/example-company
-  - id: example-lever
+      boardToken: replace-with-real-board-token
+      boardUrl: https://boards.greenhouse.io/replace-with-real-board-token
+
+  - id: my-lever-source
     type: lever
-    enabled: true
-    displayName: Example Lever Site
-    company: Example Labs
-    requestTimeoutMs: 15000
-    requestsPerSecond: 2
-    tags:
-      - ats
+    enabled: false
+    displayName: Replace with company name
+    company: Replace with company name
+    tags: []
     trackIds:
-      - quant
-      - marketing-devrel
+      - data-science
     settings:
-      companySlug: example-labs
-      jobsUrl: https://jobs.example.com/example-labs
-  - id: example-job-list
+      companySlug: replace-with-real-company-slug
+      jobsUrl: https://jobs.lever.co/replace-with-real-company-slug
+
+  - id: my-generic-job-list
     type: generic-job-list
-    enabled: true
-    displayName: Example Generic Jobs List
-    company: Example Web Company
-    requestTimeoutMs: 15000
-    requestsPerSecond: 1
-    tags:
-      - structured-data
+    enabled: false
+    displayName: Replace with careers page name
+    company: Replace with company name
+    tags: []
     trackIds:
-      - community-web3
+      - data-science
     settings:
-      url: https://careers.example.com/jobs
-      browserTimeoutMs: 30000
-      maxDiscoveredLinks: 50
-      maxTraversalDepth: 1
+      url: https://replace-with-real-careers-url.example/jobs
       allowBrowserFallback: true
-  - id: example-page-disabled
+
+  - id: my-generic-page
     type: generic-page
     enabled: false
-    displayName: Disabled Generic Page Example
-    tags:
-      - manual-review
-    trackIds: []
+    displayName: Replace with job page name
+    company: Replace with company name
+    tags: []
+    trackIds:
+      - data-science
     settings:
-      url: https://careers.example.org/openings
+      url: https://replace-with-real-job-url.example/job
       allowBrowserFallback: false

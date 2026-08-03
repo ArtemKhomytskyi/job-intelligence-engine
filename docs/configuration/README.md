@@ -3,8 +3,9 @@
 ## Chunk 7 runtime settings
 
 Chunk 7 does not add a fifth configuration file. Candidate/search/scoring/source
-configuration remains authoritative and is validated before every full run and
-server startup. Server lifecycle values use CLI options with safe defaults:
+configuration remains authoritative and is validated before every full run.
+Server startup uses inspection mode so setup remains visible while sources are
+disabled or placeholders. Server lifecycle values use CLI options with safe defaults:
 
 ```powershell
 npm.cmd run cli -- serve --host 127.0.0.1 --port 3000
@@ -24,7 +25,8 @@ Job Intelligence Engine reads four YAML files from `config` by default. Tracked 
 | `scoring.yaml` | `scoring.example.yaml` | Explicit scoring weights totaling 100       |
 | `sources.yaml` | `sources.example.yaml` | Strict source definitions                   |
 
-Private filenames are ignored by Git. Example files are tracked and contain fictional, non-sensitive data.
+Private filenames are ignored by Git. Example files are tracked documentation,
+contain fictional non-sensitive data, and are not runnable source definitions.
 
 ## Start from the examples
 
@@ -49,6 +51,7 @@ cp config/sources.example.yaml config/sources.yaml
 Validate the private copies:
 
 ```sh
+npm run cli -- sources:check
 npm run cli -- validate-config
 ```
 
@@ -84,6 +87,14 @@ The twelve weight keys shown in `scoring.example.yaml` are required; unknown key
 
 Every source has a safe unique ID, discriminator, enabled state, display name, tags, and track IDs. Empty `trackIds` means the source is not restricted to specific tracks.
 
+Tracked source templates are intentionally disabled. Replace their values
+before setting `enabled: true`. Runtime validation rejects enabled IDs beginning
+with `example`, reserved `example.com`, `example.org`, or `example.net`
+hostnames, and placeholder ATS identifiers such as `example-company`,
+`example-labs`, or `replace-with-real-*`. The stable issue code is
+`PLACEHOLDER_SOURCE_NOT_ALLOWED`. Disabled templates do not block a runtime
+configuration that also has a real enabled source.
+
 Public ATS sources may also set `company`, `requestTimeoutMs` (1000-60000), and `requestsPerSecond` (greater than 0 and at most 10). Collection defaults to the display name, 15000 ms, and two requests per second.
 
 - `greenhouse`: `boardToken` and optional valid `boardUrl`.
@@ -94,7 +105,11 @@ Public ATS sources may also set `company`, `requestTimeoutMs` (1000-60000), and 
 
 Generic browser timeouts must be 3000-90000 ms, discovered-link limits 1-200, and traversal depth 0-2. Defaults are 15000 ms, 50 links, browser fallback enabled, and depth zero (`generic-page`) or one (`generic-job-list`).
 
-Source validation performs no requests. LinkedIn is not supported. If sources later need secrets, environment-variable references require a separate design; do not store secrets directly in YAML.
+`npm run cli -- sources:check` prints each source ID, type, enabled state,
+placeholder/real classification, and readiness. It performs no network
+requests. Source validation also performs no requests. LinkedIn is not
+supported. If sources later need secrets, environment-variable references
+require a separate design; do not store secrets directly in YAML.
 
 Collect enabled sources with `npm run cli -- collect`. Use repeatable `--source <id>`, `--type greenhouse|lever|generic-page|generic-job-list`, `--concurrency 1..8`, `--config-dir`, `--verbose`, and `--json`. Partial source failures return 0 with a partial summary; configuration/arguments return 2, database initialization/finalization returns 3, and a wholly failed or cancelled run returns 4.
 
@@ -112,6 +127,6 @@ Successful example output is:
 Configuration valid
 Candidate: Artem
 Enabled tracks: 5
-Enabled sources: 3
+Enabled sources: 0
 Daily recommendation limit: 20
 ```

@@ -21,7 +21,7 @@ describe('validate-config CLI', () => {
     expect(stdout).toContain('Configuration valid');
     expect(stdout).toContain('Candidate: Artem');
     expect(stdout).toContain('Enabled tracks: 5');
-    expect(stdout).toContain('Enabled sources: 3');
+    expect(stdout).toContain('Enabled sources: 0');
     expect(stdout).toContain('Daily recommendation limit: 20');
   }, 60_000);
 });

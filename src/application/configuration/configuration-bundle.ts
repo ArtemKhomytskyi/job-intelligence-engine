@@ -15,4 +15,7 @@ export interface ConfigurationBundle {
 export interface ConfigurationLoadOptions {
   readonly directory?: string;
   readonly useExamples?: boolean;
+  readonly validationMode?: ConfigurationValidationMode;
 }
+
+export type ConfigurationValidationMode = 'runtime' | 'examples' | 'inspection';

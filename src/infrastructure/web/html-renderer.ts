@@ -10,11 +10,13 @@ import { REPORT_SORTS, REPORT_STATUSES } from '../../application/index.js';
 import {
   normalizePublicUrlValue,
   type ScoreReason,
+  type SourceReadinessReport,
 } from '../../domain/index.js';
 
 export function renderRecommendationReport(
   report: RecommendationReport,
   notice?: string,
+  sourceReadiness?: SourceReadinessReport,
 ): string {
   const batch = report.batch;
   const heading =
@@ -25,11 +27,10 @@ export function renderRecommendationReport(
     'Recommendations',
     `<div class="page-heading">
       <div><p class="eyebrow">Latest persisted batch</p><h1>${escapeHtml(heading)}</h1></div>
-      <form class="run-form" method="post" action="/actions/run" data-running-form>
-        <button type="submit" data-running-label="Pipeline running…">Run pipeline</button>
-      </form>
+      ${renderRunControl(sourceReadiness)}
     </div>
     ${notice === undefined ? '' : `<p class="notice" role="status">${escapeHtml(notice)}</p>`}
+    ${renderFirstRunState(sourceReadiness)}
     ${renderPipelineState(report.latestState)}
     ${batch === undefined ? renderNoBatch() : `${renderBatchMetadata(report)}${renderFilters(report)}${renderItems(report.items)}`}`,
   );
@@ -87,10 +88,41 @@ export function renderRecommendationDetails(
   );
 }
 
-export function renderRunsPage(state: LatestPipelineState): string {
+export function renderRunsPage(
+  state: LatestPipelineState,
+  sourceReadiness?: SourceReadinessReport,
+): string {
   return layout(
     'Latest pipeline state',
-    `<div class="page-heading"><div><p class="eyebrow">Persisted run records</p><h1>Latest pipeline state</h1></div></div>${renderPipelineState(state)}`,
+    `<div class="page-heading"><div><p class="eyebrow">Persisted run records</p><h1>Latest pipeline state</h1></div>${renderRunControl(sourceReadiness)}</div>${renderFirstRunState(sourceReadiness)}${renderPipelineState(state)}`,
+  );
+}
+
+export function renderSetupPage(
+  sourceReadiness: SourceReadinessReport,
+  notice?: string,
+): string {
+  return layout(
+    'Source setup',
+    `<div class="page-heading"><div><p class="eyebrow">Local first-run setup</p><h1>Configure real job sources</h1></div></div>
+    ${notice === undefined ? '' : `<p class="notice" role="status">${escapeHtml(notice)}</p>`}
+    ${renderFirstRunState(sourceReadiness)}
+    <section class="panel"><h2>1. Create private configuration files</h2>
+      <p>The required private files are <code>config/profile.yaml</code>, <code>config/search.yaml</code>, <code>config/scoring.yaml</code>, and <code>config/sources.yaml</code>. They are Git-ignored and must not be committed.</p>
+      <pre class="description">Copy-Item config/profile.example.yaml config/profile.yaml
+Copy-Item config/search.example.yaml config/search.yaml
+Copy-Item config/scoring.example.yaml config/scoring.yaml
+Copy-Item config/sources.example.yaml config/sources.yaml</pre>
+      <p>Edit every copied file. Replace example source URLs, board tokens, and company slugs before enabling a source.</p></section>
+    <section class="panel"><h2>2. Add a supported source</h2><p>Supported collection types are Greenhouse, Lever, generic job-list, and generic-page. Tracked templates remain disabled until edited.</p></section>
+    <section class="panel"><h2>3. Validate and run</h2>
+      <pre class="description">npm run cli -- sources:check
+npm run cli -- validate-config
+npm run cli -- collect
+npm run cli -- run
+npm run cli -- serve</pre>
+      <p><code>sources:check</code> performs no network requests. Collection and the full pipeline contact only sources you explicitly enable.</p></section>
+    <p><a class="button" href="/recommendations">Back to recommendations</a></p>`,
   );
 }
 
@@ -308,6 +340,22 @@ function pipelineStageProgress(
 
 function renderNoBatch(): string {
   return `<section class="panel empty"><h2>No recommendation batch yet</h2><p class="muted">Run the pipeline to collect, process, score, and persist recommendations.</p></section>`;
+}
+
+function renderRunControl(
+  sourceReadiness: SourceReadinessReport | undefined,
+): string {
+  if (sourceReadiness !== undefined && !sourceReadiness.hasRealEnabledSource)
+    return `<a class="button" href="/setup">Set up job sources</a>`;
+  return `<form class="run-form" method="post" action="/actions/run" data-running-form><button type="submit" data-running-label="Pipeline running…">Run pipeline</button></form>`;
+}
+
+function renderFirstRunState(
+  sourceReadiness: SourceReadinessReport | undefined,
+): string {
+  if (sourceReadiness === undefined || sourceReadiness.hasRealEnabledSource)
+    return '';
+  return `<section class="panel empty" aria-labelledby="source-setup-heading"><p class="eyebrow">Setup required</p><h2 id="source-setup-heading">No real job sources configured.</h2><p>Add at least one Greenhouse, Lever, generic job-list, or generic-page source to <code>config/sources.yaml</code>.</p><p><a href="/setup">Open source setup instructions</a></p></section>`;
 }
 
 function layout(title: string, content: string): string {

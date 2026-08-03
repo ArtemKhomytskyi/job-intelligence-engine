@@ -10,6 +10,7 @@ import { runProcess } from './process-command.js';
 import { runRecommend } from './recommend-command.js';
 import { runFullPipelineCommand } from './run-command.js';
 import { runServe } from './serve-command.js';
+import { runSourcesCheck } from './sources-check-command.js';
 import {
   type CommandOutput,
   runValidateConfig,
@@ -127,6 +128,17 @@ export async function runCli(
           processingLimit: Number(parsed.values['processing-limit']),
           verbose: parsed.values.verbose,
           signal,
+        },
+        output,
+      );
+    }
+
+    if (command === 'sources:check') {
+      return runSourcesCheck(
+        {
+          configDirectory: parsed.values['config-dir'] ?? 'config',
+          useExamples: parsed.values.examples,
+          asJson: parsed.values.json,
         },
         output,
       );

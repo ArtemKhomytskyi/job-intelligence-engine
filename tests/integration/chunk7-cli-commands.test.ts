@@ -93,6 +93,27 @@ describe('Chunk 7 CLI commands', () => {
     expect(runtime.closed).toBe(true);
   });
 
+  it('starts the local report when no real source is ready', async () => {
+    const port = await availablePort();
+    const controller = new AbortController();
+    const output = captureOutput((value) => {
+      if (value.includes('JIE local report available')) controller.abort();
+    });
+    const runtime = fakeRuntime();
+    runtime.inspectSourceReadiness = () =>
+      Promise.resolve({ sources: [], hasRealEnabledSource: false });
+
+    await expect(
+      runServe(
+        { ...serveOptions(), port, signal: controller.signal },
+        output,
+        () => runtime,
+      ),
+    ).resolves.toBe(0);
+    expect(output.stdout.join('')).toContain(`http://127.0.0.1:${port}`);
+    expect(runtime.healthChecks).toBe(1);
+  });
+
   it('fails safely when startup database health fails or the address is in use', async () => {
     const healthOutput = captureOutput();
     const unhealthy = fakeRuntime(new Error('database unavailable'), true);
@@ -162,6 +183,8 @@ function fakeRuntime(
       },
     },
     validateConfiguration: () => Promise.resolve(),
+    inspectSourceReadiness: () =>
+      Promise.resolve({ sources: [], hasRealEnabledSource: true }),
     close: () => {
       runtime.closed = true;
       return Promise.resolve();

@@ -19,9 +19,11 @@ let server: NodeLocalServer;
 let browser: Browser | undefined;
 let runtime: BrowserRuntime;
 let baseUrl: string;
+let sourceReadiness: { sources: never[]; hasRealEnabledSource: boolean };
 
 beforeEach(async () => {
   runtime = new BrowserRuntime();
+  sourceReadiness = { sources: [], hasRealEnabledSource: true };
   server = new NodeLocalServer(
     createLocalReportHandler({
       runtime,
@@ -29,6 +31,7 @@ beforeEach(async () => {
       pipelineSignal: new AbortController().signal,
       collectionConcurrency: 1,
       processingLimit: 100,
+      sourceReadiness,
     }),
   );
   baseUrl = (await server.start('127.0.0.1', 0)).url;
@@ -120,16 +123,42 @@ describe('local recommendation report browser flow', () => {
     await page.waitForURL(/\/runs\/latest$/u);
     expect(await page.locator('main').textContent()).toContain('FAILED');
   });
+
+  it('guides first-run setup without launching the pipeline', async () => {
+    if (browser === undefined) throw new Error('Browser did not start.');
+    sourceReadiness.hasRealEnabledSource = false;
+    const page = await browser.newPage();
+
+    await page.goto(`${baseUrl}/recommendations`);
+    await page
+      .getByRole('heading', { name: 'No real job sources configured.' })
+      .waitFor();
+    expect(
+      await page.getByRole('button', { name: 'Run pipeline' }).count(),
+    ).toBe(0);
+    await page.getByRole('link', { name: 'Set up job sources' }).click();
+    await page.waitForURL(/\/setup$/u);
+    await page
+      .getByRole('heading', { name: 'Configure real job sources' })
+      .waitFor();
+    expect(await page.locator('main').textContent()).toContain(
+      'npm run cli -- sources:check',
+    );
+    expect(runtime.pipelineCalls).toBe(0);
+  });
 });
 
 class BrowserRuntime implements LocalReportRuntime {
   public status: 'NEW' | 'VIEWED' | 'APPLIED' | 'SKIPPED' = 'NEW';
   public lastQuery: RecommendationReportQuery | undefined;
+  public pipelineCalls = 0;
   public readonly pipeline = {
-    execute: () =>
-      Promise.reject(
+    execute: () => {
+      this.pipelineCalls += 1;
+      return Promise.reject(
         new PipelineStageError('collection', 'BROWSER_INTERNAL_SENTINEL'),
-      ),
+      );
+    },
   };
   public readonly getReport = {
     execute: (query: RecommendationReportQuery) => {

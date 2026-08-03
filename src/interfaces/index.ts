@@ -8,6 +8,7 @@ export { formatProcessingSummary } from './cli/process-command.js';
 export { formatRecommendationBatch } from './cli/recommend-command.js';
 export { formatFullPipelineResult } from './cli/run-command.js';
 export { validateServerOptions } from './cli/serve-command.js';
+export { formatSourceReadiness } from './cli/sources-check-command.js';
 export {
   createLocalReportHandler,
   mapWebError,

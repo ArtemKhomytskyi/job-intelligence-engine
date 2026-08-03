@@ -22,12 +22,15 @@ and immutable status history. Scores are never recalculated by the report.
 
 - `GET /` redirects to `/recommendations`.
 - `GET /recommendations` renders the latest batch and validated query filters.
+- `GET /setup` renders local private-configuration and source setup steps.
 - `GET /recommendations/:id` renders complete details and may auto-mark VIEWED.
 - `POST /recommendations/:id/status` explicitly sets VIEWED, APPLIED, or SKIPPED.
 - `GET /runs/latest` renders latest collection, processing, and batch records.
   A validated `failure` marker renders a safe summary for the failed manual
   attempt while retaining links to the ordinary persisted-state view.
 - `POST /actions/run` invokes the shared full-pipeline application service.
+  Without a real enabled source it performs no pipeline call and redirects to
+  setup instructions.
   Expected `PipelineStageError` results use a 303 redirect to the safe failure
   summary; other exceptions continue to use the generic 500 page.
 - `GET /health` checks PostgreSQL and returns minimal JSON.
@@ -40,6 +43,12 @@ counts from persisted state, and explicitly identifies downstream stages that
 did not run. It never renders the underlying error message. Stack traces,
 environment values, filesystem paths, database URLs, source credentials, and
 Prisma errors are not rendered.
+
+Source readiness is classified before binding. Recommendations and pipeline
+pages show a normal first-run state when no real enabled source exists and
+replace Run Pipeline with a setup link. The POST route enforces the same
+immutable readiness result, so a hand-crafted request cannot launch placeholder
+collection. This state is not an HTTP error.
 
 ## Filters and ordering
 
@@ -66,7 +75,9 @@ and source links are public-URL checked and use `noopener noreferrer`. CSP
 denies remote resources; security headers deny framing/sniffing and restrict
 referrers to same-origin requests so local mutation Origin checks remain usable.
 
-Startup validates configuration, checks PostgreSQL, then binds. SIGINT/SIGTERM
+Startup validates configuration structure in inspection mode, classifies source
+readiness, checks PostgreSQL, then binds. Runtime collection and full-pipeline
+commands use strict validation and reject enabled placeholders. SIGINT/SIGTERM
 close the listener, browser renderer, and Prisma client. A process-local lock
 allows one run at a time and releases in `finally`. It does not coordinate
 separately launched JIE processes, an accepted single-user V1 limitation.

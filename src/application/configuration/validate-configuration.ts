@@ -1,6 +1,12 @@
 import type { SearchTrack, SourceConfig } from '../../domain/index.js';
-import { WEIGHTED_SCORING_COMPONENT_KEYS } from '../../domain/index.js';
-import type { ConfigurationBundle } from './configuration-bundle.js';
+import {
+  WEIGHTED_SCORING_COMPONENT_KEYS,
+  inspectSourceReadiness,
+} from '../../domain/index.js';
+import type {
+  ConfigurationBundle,
+  ConfigurationValidationMode,
+} from './configuration-bundle.js';
 import {
   ConfigurationError,
   type ConfigurationIssue,
@@ -9,12 +15,20 @@ import {
 
 const SAFE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
-export function validateConfiguration(bundle: ConfigurationBundle): void {
+export interface ValidateConfigurationOptions {
+  readonly mode?: ConfigurationValidationMode;
+}
+
+export function validateConfiguration(
+  bundle: ConfigurationBundle,
+  options: ValidateConfigurationOptions = {},
+): void {
   const issues: ConfigurationIssue[] = [];
+  const mode = options.mode ?? 'runtime';
 
   validateSafeId(bundle.candidate.id, 'profile', 'candidate.id', issues);
   validateTracks(bundle, issues);
-  validateSources(bundle, issues);
+  validateSources(bundle, mode, issues);
   validateWeights(bundle, issues);
   validateScoringSettings(bundle, issues);
   validatePreferences(bundle, issues);
@@ -97,6 +111,7 @@ function validateTracks(
 
 function validateSources(
   bundle: ConfigurationBundle,
+  mode: ConfigurationValidationMode,
   issues: ConfigurationIssue[],
 ): void {
   collectDuplicateIds(bundle.sources, 'sources', 'sources', issues);
@@ -116,13 +131,26 @@ function validateSources(
     }
   }
 
-  if (!bundle.sources.some((source) => source.enabled)) {
+  if (mode === 'runtime' && !bundle.sources.some((source) => source.enabled)) {
     issues.push({
       code: 'CONFIG_REFERENCE_INVALID',
       section: 'sources',
       fieldPath: 'sources',
       message: 'At least one source must be enabled.',
     });
+  }
+
+  if (mode === 'runtime') {
+    const readiness = inspectSourceReadiness(bundle.sources);
+    for (const [index, source] of readiness.sources.entries()) {
+      if (!source.enabled || source.classification !== 'PLACEHOLDER') continue;
+      issues.push({
+        code: 'PLACEHOLDER_SOURCE_NOT_ALLOWED',
+        section: 'sources',
+        fieldPath: `sources[${index}]`,
+        message: `Source "${source.id}" is a documentation placeholder. Configure a real source URL or ATS identifier before running collection.`,
+      });
+    }
   }
 }
 

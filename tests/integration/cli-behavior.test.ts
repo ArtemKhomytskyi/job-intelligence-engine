@@ -44,9 +44,28 @@ describe('CLI behavior', () => {
       valid: true,
       candidate: 'Artem',
       enabledTracks: 5,
-      enabledSources: 3,
+      enabledSources: 0,
       dailyRecommendationLimit: 20,
     });
+  });
+
+  it('reports source readiness without performing collection', async () => {
+    const directory = await createTemporaryConfigDirectory();
+    try {
+      const output = captureOutput();
+      await expect(
+        runCli(['sources:check', '--config-dir', directory], output),
+      ).resolves.toBe(0);
+      expect(output.stdout.join('')).toContain('Source configuration ready');
+      expect(output.stdout.join('')).toContain(
+        'my-greenhouse-source | greenhouse | enabled | real | ready',
+      );
+      expect(output.stdout.join('')).toContain(
+        'This check performs no network requests.',
+      );
+    } finally {
+      await removeTemporaryConfigDirectory(directory);
+    }
   });
 
   it('reports missing private files without falling back to examples', async () => {
