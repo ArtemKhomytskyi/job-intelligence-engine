@@ -82,6 +82,25 @@ describe('full pipeline application service', () => {
     expect(events).toEqual([]);
   });
 
+  it('creates no collection run when external browser fallback is rejected', async () => {
+    const events: string[] = [];
+    const ports = dependencies(events);
+    ports.configuration.load = () =>
+      Promise.reject(
+        new ConfigurationError([
+          {
+            code: 'BROWSER_FALLBACK_EXTERNAL_UNSAFE',
+            section: 'sources',
+            message: 'External browser fallback is not permitted.',
+          },
+        ]),
+      );
+    await expect(new RunFullPipeline(ports).execute(input())).rejects.toThrow(
+      'External browser fallback is not permitted.',
+    );
+    expect(events).toEqual([]);
+  });
+
   it.each(['FAILED', 'CANCELLED'] as const)(
     'does not process when collection is %s',
     async (status) => {

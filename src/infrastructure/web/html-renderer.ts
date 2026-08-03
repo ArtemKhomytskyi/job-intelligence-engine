@@ -114,7 +114,7 @@ Copy-Item config/search.example.yaml config/search.yaml
 Copy-Item config/scoring.example.yaml config/scoring.yaml
 Copy-Item config/sources.example.yaml config/sources.yaml</pre>
       <p>Edit every copied file. Replace example source URLs, board tokens, and company slugs before enabling a source.</p></section>
-    <section class="panel"><h2>2. Add a supported source</h2><p>Supported collection types are Greenhouse, Lever, generic job-list, and generic-page. Tracked templates remain disabled until edited.</p></section>
+    <section class="panel"><h2>2. Add a supported source</h2><p>Supported pilot types are Greenhouse, global Lever, and HTTP-only generic job-list or generic-page. External browser fallback is disabled; set <code>allowBrowserFallback: false</code>. Tracked templates remain disabled until edited.</p>${renderSourceBlockers(sourceReadiness)}</section>
     <section class="panel"><h2>3. Validate and run</h2>
       <pre class="description">npm run cli -- sources:check
 npm run cli -- validate-config
@@ -355,7 +355,15 @@ function renderFirstRunState(
 ): string {
   if (sourceReadiness === undefined || sourceReadiness.hasRealEnabledSource)
     return '';
-  return `<section class="panel empty" aria-labelledby="source-setup-heading"><p class="eyebrow">Setup required</p><h2 id="source-setup-heading">No real job sources configured.</h2><p>Add at least one Greenhouse, Lever, generic job-list, or generic-page source to <code>config/sources.yaml</code>.</p><p><a href="/setup">Open source setup instructions</a></p></section>`;
+  return `<section class="panel empty" aria-labelledby="source-setup-heading"><p class="eyebrow">Setup required</p><h2 id="source-setup-heading">Job sources are not ready.</h2><p>Add a Greenhouse, global Lever, or HTTP-only generic source to <code>config/sources.yaml</code>.</p>${renderSourceBlockers(sourceReadiness)}<p><a href="/setup">Open source setup instructions</a></p></section>`;
+}
+
+function renderSourceBlockers(sourceReadiness: SourceReadinessReport): string {
+  const blocked = sourceReadiness.sources.filter(
+    (source) => source.enabled && !source.configurationReady,
+  );
+  if (blocked.length === 0) return '';
+  return `<ul>${blocked.map((source) => `<li><strong>${escapeHtml(source.id)}</strong>: ${escapeHtml(source.reasons.join(', '))}</li>`).join('')}</ul>`;
 }
 
 function layout(title: string, content: string): string {

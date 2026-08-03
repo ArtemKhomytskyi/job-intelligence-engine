@@ -99,11 +99,23 @@ Public ATS sources may also set `company`, `requestTimeoutMs` (1000-60000), and 
 
 - `greenhouse`: `boardToken` and optional valid `boardUrl`.
 - `lever`: `companySlug` and optional valid `jobsUrl`.
-- `generic-page`: public HTTPS `url` plus optional browser timeout, link/depth limits, and browser fallback flag.
+- `generic-page`: public HTTPS `url` plus optional browser timeout, link/depth limits, and a browser fallback flag that must remain false externally.
 - `generic-job-list`: the same settings, with a default traversal depth of one.
 - `generic-jsonld`: retained as a configuration-only legacy discriminator; use `generic-page` for collection.
 
-Generic browser timeouts must be 3000-90000 ms, discovered-link limits 1-200, and traversal depth 0-2. Defaults are 15000 ms, 50 links, browser fallback enabled, and depth zero (`generic-page`) or one (`generic-job-list`).
+Generic browser timeouts must be 3000-90000 ms, discovered-link limits 1-200,
+and traversal depth 0-2. Defaults are 15000 ms, 50 links, browser fallback
+disabled, and depth zero (`generic-page`) or one (`generic-job-list`). Enabled
+external generic sources with `allowBrowserFallback: true` fail runtime
+validation with `BROWSER_FALLBACK_EXTERNAL_UNSAFE`; set it to false for the
+connection-bound HTTP path. Inspection and `sources:check` report the same
+stable blocker without network access.
+
+All production HTTP source requests require every DNS answer to pass the public
+address policy. The selected address is pinned to the actual socket while Host,
+TLS SNI, and certificate verification use the original hostname. Every redirect
+is independently resolved and bound. Encoded responses are rejected because V1
+does not perform bounded decompression.
 
 `npm run cli -- sources:check` prints each source ID, type, enabled state,
 placeholder/real classification, and readiness. It performs no network
@@ -125,7 +137,7 @@ Successful example output is:
 
 ```text
 Configuration valid
-Candidate: Artem
+Candidate: Example Candidate
 Enabled tracks: 5
 Enabled sources: 0
 Daily recommendation limit: 20

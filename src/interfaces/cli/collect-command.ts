@@ -86,7 +86,7 @@ export async function runCollect(
     const clock = new SystemClock();
     const sleeper = new AbortableSleeper();
     const urlSafety = new PublicUrlSafetyValidator();
-    const baseHttp = new NodeFetchHttpClient(fetch, urlSafety);
+    const baseHttp = new NodeFetchHttpClient(urlSafety);
     const http = new RetryingHttpClient(
       new RateLimitedHttpClient(baseHttp, clock, sleeper),
       sleeper,

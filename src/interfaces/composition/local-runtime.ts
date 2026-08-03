@@ -82,7 +82,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const transactions = new PrismaTransactionManager(client);
   const sleeper = new AbortableSleeper();
   const urlSafety = new PublicUrlSafetyValidator();
-  const baseHttp = new NodeFetchHttpClient(fetch, urlSafety);
+  const baseHttp = new NodeFetchHttpClient(urlSafety);
   const http = new RetryingHttpClient(
     new RateLimitedHttpClient(baseHttp, clock, sleeper),
     sleeper,

@@ -386,7 +386,7 @@ function locationFields(value: unknown): { readonly location?: string } {
   const locations = json.flatMap((item) => {
     if (typeof item === 'string') return [item];
     if (!isJsonObject(item)) return [];
-    const candidate = [item['city'], item['region'], item['countryCode']]
+    const candidate = [item['city'], item['region'], item['country']]
       .filter((part): part is string => typeof part === 'string')
       .join(', ');
     return candidate.length === 0 ? [] : [candidate];

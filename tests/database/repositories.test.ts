@@ -43,6 +43,7 @@ import {
   createPrismaClient,
   PrismaTransactionManager,
   PrismaRecommendationReportRepository,
+  PrismaRecommendationBatchRepository,
   PrismaDatabaseHealth,
   NodeLocalServer,
   Sha256ProcessingHasher,
@@ -91,6 +92,11 @@ describe('PostgreSQL persistence repositories', () => {
       { debug() {}, info() {}, warn() {}, error() {} },
       new Sha256ProcessingHasher(),
     ).execute(processingInput());
+    expect(
+      await new PrismaRecommendationBatchRepository(
+        client,
+      ).listEligibleCandidates(10),
+    ).toEqual([expect.objectContaining({ sourceIds: ['source-a'] })]);
     const makeService = () =>
       new CreateRecommendations(
         new TransactionalRecommendationBatchRepository(transactions),
@@ -140,6 +146,7 @@ describe('PostgreSQL persistence repositories', () => {
       rank: 1,
       title: 'Platform Engineer',
       company: 'Example Labs',
+      location: 'Berlin, DE',
       currentStatus: 'NEW',
     });
     const recommendationId = report.items[0]?.recommendationId;

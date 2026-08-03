@@ -80,7 +80,7 @@ export function toCollectableSources(
                 source.settings.maxTraversalDepth ??
                 (source.type === 'generic-job-list' ? 1 : 0),
               allowBrowserFallback:
-                source.settings.allowBrowserFallback ?? true,
+                source.settings.allowBrowserFallback ?? false,
             },
           ];
       }

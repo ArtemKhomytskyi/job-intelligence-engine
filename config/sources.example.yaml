@@ -36,7 +36,7 @@ sources:
       - data-science
     settings:
       url: https://replace-with-real-careers-url.example/jobs
-      allowBrowserFallback: true
+      allowBrowserFallback: false
 
   - id: my-generic-page
     type: generic-page

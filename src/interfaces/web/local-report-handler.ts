@@ -324,11 +324,21 @@ function requireSameOrigin(request: IncomingMessage): void {
       'The request Host does not match the local report.',
     );
   const origin = request.headers.origin;
-  if (origin !== undefined && origin !== `http://${expectedHost}`)
+  const refererOrigin = parseOrigin(request.headers.referer);
+  if ((origin ?? refererOrigin) !== `http://${expectedHost}`)
     throw new ReportQueryError('Cross-origin mutations are not allowed.');
   const fetchSite = request.headers['sec-fetch-site'];
   if (fetchSite !== undefined && fetchSite !== 'same-origin')
     throw new ReportQueryError('Cross-site mutations are not allowed.');
+}
+
+function parseOrigin(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return undefined;
+  }
 }
 
 async function readForm(request: IncomingMessage): Promise<URLSearchParams> {

@@ -6,7 +6,22 @@ The CLI loads strict YAML, selects enabled supported sources, and starts at most
 
 ## HTTP policy
 
-Public endpoints must use HTTPS; loopback HTTP exists only for controlled local testing. Requests have a finite 15-second default timeout, a five-MiB response cap, cancellation, and no more than three total attempts. Only network, timeout, HTTP 408, 429, and 5xx failures retry, with bounded exponential delays. A per-source queue enforces the configured request interval; different sources remain independent. Logged endpoints omit query strings and no payloads or configuration values are logged.
+Public endpoints must use HTTPS; loopback HTTP exists only for controlled local
+testing. Each hostname is resolved through the injected resolver, every returned
+IPv4/IPv6 address must pass policy, and the deterministically selected address
+is supplied to the actual per-request socket lookup. The original hostname is
+retained for Host, TLS SNI, and certificate verification. Agents and socket
+reuse are disabled. Every redirect repeats resolution, validation, and binding;
+automatic redirects are disabled.
+
+Requests have a finite 15-second deadline covering connection and body
+consumption, a five-MiB byte cap, cancellation, and no more than three total
+attempts. The client requests identity encoding and rejects encoded responses,
+so decompression cannot occur below the byte counter. `Content-Length` is an
+advisory early check; streamed bytes remain authoritative. Only resolver,
+network, timeout, HTTP 408, 429, and 5xx failures retry. Logged endpoints omit
+query strings and no payloads, resolved private addresses, or configuration
+values are logged.
 
 ## Collector and normalization scope
 

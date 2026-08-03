@@ -4,6 +4,7 @@ import { runCli } from '../../src/interfaces/index.js';
 import {
   createTemporaryConfigDirectory,
   removeTemporaryConfigDirectory,
+  writeConfig,
 } from '../helpers/config-directory.js';
 
 describe('CLI behavior', () => {
@@ -42,7 +43,7 @@ describe('CLI behavior', () => {
     ).resolves.toBe(0);
     expect(JSON.parse(output.stdout.join(''))).toEqual({
       valid: true,
-      candidate: 'Artem',
+      candidate: 'Example Candidate',
       enabledTracks: 5,
       enabledSources: 0,
       dailyRecommendationLimit: 20,
@@ -63,6 +64,41 @@ describe('CLI behavior', () => {
       expect(output.stdout.join('')).toContain(
         'This check performs no network requests.',
       );
+    } finally {
+      await removeTemporaryConfigDirectory(directory);
+    }
+  });
+
+  it('reports the stable external browser fallback blocker without collection', async () => {
+    const directory = await createTemporaryConfigDirectory();
+    try {
+      await writeConfig(
+        directory,
+        'sources',
+        `sources:
+  - id: synthetic-generic
+    type: generic-page
+    enabled: true
+    displayName: Synthetic Generic
+    company: Synthetic Company
+    tags: []
+    trackIds: [data-science]
+    settings:
+      url: https://careers.synthetic.invalid/jobs
+      allowBrowserFallback: true
+`,
+      );
+      const output = captureOutput();
+      await expect(
+        runCli(['sources:check', '--config-dir', directory, '--json'], output),
+      ).resolves.toBe(1);
+      const report = JSON.parse(output.stdout.join('')) as {
+        sources: readonly { blockerCodes: readonly string[] }[];
+      };
+      expect(report.sources[0]?.blockerCodes).toEqual([
+        'BROWSER_FALLBACK_EXTERNAL_UNSAFE',
+      ]);
+      expect(output.stderr).toEqual([]);
     } finally {
       await removeTemporaryConfigDirectory(directory);
     }

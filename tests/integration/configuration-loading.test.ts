@@ -33,7 +33,7 @@ describe('configuration loading', () => {
   it('loads all private-name fixtures and produces the expected summary', async () => {
     const bundle = await loadFrom(directory);
     expect(summarizeConfiguration(bundle)).toEqual({
-      candidateDisplayName: 'Artem',
+      candidateDisplayName: 'Example Candidate',
       enabledTrackCount: 5,
       enabledSourceCount: 1,
       dailyRecommendationLimit: 20,
@@ -42,7 +42,7 @@ describe('configuration loading', () => {
 
   it('loads tracked examples only when explicitly requested', async () => {
     await expect(loadFrom('config', true)).resolves.toMatchObject({
-      candidate: { displayName: 'Artem' },
+      candidate: { displayName: 'Example Candidate' },
     });
   });
 
@@ -211,6 +211,57 @@ describe('configuration loading', () => {
     } finally {
       await removeTemporaryConfigDirectory(freshDirectory);
     }
+  });
+
+  it('rejects the legacy generic-jsonld type before collection starts', async () => {
+    await writeConfig(
+      directory,
+      'sources',
+      `sources:
+  - id: legacy-jsonld
+    type: generic-jsonld
+    enabled: true
+    displayName: Legacy JSON-LD
+    company: Synthetic Company
+    tags: []
+    trackIds: [data-science]
+    settings:
+      url: https://careers.synthetic.invalid/jobs
+`,
+    );
+    const error = await captureConfigurationError(directory);
+    expect(error.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'CONFIG_REFERENCE_INVALID',
+        fieldPath: 'sources[0].type',
+      }),
+    );
+  });
+
+  it('rejects external browser fallback but accepts HTTP-only generic collection', async () => {
+    const source = (allowBrowserFallback: boolean): string => `sources:
+  - id: synthetic-generic
+    type: generic-page
+    enabled: true
+    displayName: Synthetic Generic
+    company: Synthetic Company
+    tags: []
+    trackIds: [data-science]
+    settings:
+      url: https://careers.synthetic.invalid/jobs
+      allowBrowserFallback: ${String(allowBrowserFallback)}
+`;
+    await writeConfig(directory, 'sources', source(true));
+    const error = await captureConfigurationError(directory);
+    expect(error.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'BROWSER_FALLBACK_EXTERNAL_UNSAFE',
+        fieldPath: 'sources[0].settings.allowBrowserFallback',
+      }),
+    );
+
+    await writeConfig(directory, 'sources', source(false));
+    await expect(loadFrom(directory)).resolves.toBeDefined();
   });
 
   it('rejects unknown track references and incompatible relocation preferences', async () => {

@@ -59,7 +59,7 @@ export function formatHelp(): string {
     'Commands:',
     '  validate-config  Validate local or example YAML configuration',
     '  sources:check    Inspect source readiness without network requests',
-    '  collect          Collect jobs from enabled Greenhouse and Lever sources',
+    '  collect          Collect jobs from enabled Greenhouse, Lever, and generic sources',
     '  process          Normalize, deduplicate, and hard-filter collected jobs',
     '  recommend        Score eligible jobs and create a recommendation batch',
     '  run              Execute collection, processing, and recommendations',

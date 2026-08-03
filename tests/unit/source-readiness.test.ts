@@ -56,6 +56,50 @@ describe('source readiness', () => {
     });
     expect(report.hasRealEnabledSource).toBe(false);
   });
+
+  it('reports the legacy generic-jsonld type as real but not runnable', () => {
+    const report = inspectSourceReadiness([
+      {
+        id: 'legacy-jsonld',
+        type: 'generic-jsonld',
+        enabled: true,
+        displayName: 'Legacy JSON-LD',
+        tags: [],
+        trackIds: ['data-science'],
+        settings: { url: 'https://careers.synthetic.invalid/jobs' },
+      },
+    ]);
+    expect(report.sources[0]).toMatchObject({
+      classification: 'REAL',
+      configurationReady: false,
+      reasons: ['source type is not supported by collection'],
+    });
+    expect(report.hasRealEnabledSource).toBe(false);
+  });
+
+  it('blocks external browser fallback while allowing HTTP-only generic sources', () => {
+    const blocked = inspectSourceReadiness([
+      generic('https://careers.synthetic.invalid/jobs', true),
+    ]);
+    expect(blocked.sources[0]).toMatchObject({
+      classification: 'REAL',
+      configurationReady: false,
+      blockerCodes: ['BROWSER_FALLBACK_EXTERNAL_UNSAFE'],
+      reasons: [
+        'external browser fallback is disabled by the source network policy',
+      ],
+    });
+    expect(blocked.hasRealEnabledSource).toBe(false);
+
+    const httpOnly = inspectSourceReadiness([
+      generic('https://careers.synthetic.invalid/jobs', false),
+    ]);
+    expect(httpOnly.sources[0]).toMatchObject({
+      configurationReady: true,
+      blockerCodes: [],
+    });
+    expect(httpOnly.hasRealEnabledSource).toBe(true);
+  });
 });
 
 function greenhouse(
@@ -90,7 +134,7 @@ function lever(
   };
 }
 
-function generic(url: string): SourceConfig {
+function generic(url: string, allowBrowserFallback?: boolean): SourceConfig {
   return {
     id: 'generic-source',
     type: 'generic-job-list',
@@ -98,6 +142,9 @@ function generic(url: string): SourceConfig {
     displayName: 'Synthetic list',
     tags: [],
     trackIds: ['data-science'],
-    settings: { url },
+    settings: {
+      url,
+      ...(allowBrowserFallback === undefined ? {} : { allowBrowserFallback }),
+    },
   };
 }

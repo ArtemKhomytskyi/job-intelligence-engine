@@ -113,7 +113,11 @@ describe('collection core', () => {
           settings: { url: 'https://example.test' },
         },
       ])[0],
-    ).toMatchObject({ type: 'generic-page', url: 'https://example.test' });
+    ).toMatchObject({
+      type: 'generic-page',
+      url: 'https://example.test',
+      allowBrowserFallback: false,
+    });
   });
 
   it('handles entity, localhost, timestamp and optional normalization branches', () => {

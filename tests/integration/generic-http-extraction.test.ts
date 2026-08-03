@@ -1,4 +1,6 @@
 import { readFile } from 'node:fs/promises';
+import { createServer as createHttpsServer } from 'node:https';
+import { once } from 'node:events';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -12,6 +14,7 @@ import {
   CheerioDocumentExtractor,
   HttpPageAcquirer,
   NodeFetchHttpClient,
+  NodeConnectionBoundTransport,
   PublicUrlSafetyValidator,
 } from '../../src/infrastructure/index.js';
 import { FixtureSiteServer } from '../helpers/fixture-site-server.js';
@@ -29,6 +32,118 @@ afterEach(async () => {
 });
 
 describe('controlled generic HTTP extraction', () => {
+  it('preserves the original TLS hostname, SNI, and certificate verification', async () => {
+    const [key, certificate] = await Promise.all([
+      readFile('tests/fixtures/tls/fixture.synthetic.test-key.pem', 'utf8'),
+      readFile('tests/fixtures/tls/fixture.synthetic.test-cert.pem', 'utf8'),
+    ]);
+    const servernameValues: string[] = [];
+    const tlsServer = createHttpsServer(
+      { key, cert: certificate },
+      (_request, response) => response.end('secure response'),
+    );
+    tlsServer.on('secureConnection', (socket) => {
+      servernameValues.push(
+        typeof socket.servername === 'string' ? socket.servername : '',
+      );
+    });
+    tlsServer.listen(0, '127.0.0.1');
+    await once(tlsServer, 'listening');
+    const address = tlsServer.address();
+    if (address === null || typeof address === 'string')
+      throw new Error('TLS fixture did not expose a TCP address.');
+    const validator = new PublicUrlSafetyValidator({
+      resolve: () => Promise.resolve(['127.0.0.1']),
+    });
+    const http = new NodeFetchHttpClient(
+      validator,
+      new NodeConnectionBoundTransport(certificate),
+    );
+    const base = {
+      timeoutMs: 2_000,
+      signal: new AbortController().signal,
+      rateLimitKey: 'tls-fixture',
+      minimumIntervalMs: 0,
+      allowTestLoopback: true,
+    };
+    try {
+      await expect(
+        http.getText({
+          ...base,
+          url: `https://fixture.synthetic.test:${address.port}/secure`,
+        }),
+      ).resolves.toMatchObject({ data: 'secure response' });
+      expect(servernameValues).toEqual(['fixture.synthetic.test']);
+
+      await expect(
+        http.getText({
+          ...base,
+          url: `https://wrong.synthetic.test:${address.port}/secure`,
+        }),
+      ).rejects.toMatchObject({ code: 'HTTP_NETWORK_ERROR' });
+    } finally {
+      tlsServer.close();
+      await once(tlsServer, 'close');
+    }
+  });
+
+  it('binds a synthetic hostname to the validated loopback address and preserves Host', async () => {
+    server = new FixtureSiteServer({ '/bound': { body: 'bound response' } });
+    const origin = new URL(await server.start());
+    let resolutions = 0;
+    const safety = new PublicUrlSafetyValidator({
+      resolve(hostname) {
+        expect(hostname).toBe('fixture.synthetic.test');
+        resolutions += 1;
+        return Promise.resolve(
+          resolutions === 1 ? ['127.0.0.1'] : ['10.0.0.1'],
+        );
+      },
+    });
+    const url = `http://fixture.synthetic.test:${origin.port}/bound`;
+    const result = await new NodeFetchHttpClient(safety).getText({
+      url,
+      timeoutMs: 2_000,
+      signal: new AbortController().signal,
+      rateLimitKey: 'fixture',
+      minimumIntervalMs: 0,
+      allowTestLoopback: true,
+    });
+    expect(result.data).toBe('bound response');
+    expect(resolutions).toBe(1);
+    expect(server.getRequests()).toContainEqual({
+      method: 'GET',
+      url: '/bound',
+      host: `fixture.synthetic.test:${origin.port}`,
+    });
+  });
+
+  it('cancels oversized and slow loopback responses', async () => {
+    server = new FixtureSiteServer({
+      '/oversized': { body: 'x'.repeat(20_000) },
+      '/slow': { body: 'late', delayMs: 250 },
+    });
+    const origin = await server.start();
+    const http = new NodeFetchHttpClient(new PublicUrlSafetyValidator());
+    const base = {
+      signal: new AbortController().signal,
+      rateLimitKey: 'fixture',
+      minimumIntervalMs: 0,
+      allowTestLoopback: true,
+    };
+    await expect(
+      http.getText({
+        ...base,
+        url: `${origin}/oversized`,
+        timeoutMs: 2_000,
+        maximumResponseBytes: 1_024,
+      }),
+    ).rejects.toMatchObject({ code: 'HTML_RESPONSE_TOO_LARGE' });
+    await expect(
+      http.getText({ ...base, url: `${origin}/slow`, timeoutMs: 25 }),
+    ).rejects.toMatchObject({ code: 'HTTP_TIMEOUT' });
+  });
+
   it('follows bounded redirects and extracts a static JSON-LD detail page', async () => {
     const detail = await fixture('json-ld-single.html');
     server = new FixtureSiteServer({
@@ -112,7 +227,7 @@ describe('controlled generic HTTP extraction', () => {
 function collector(
   type: 'generic-page' | 'generic-job-list',
 ): GenericWebCollector {
-  const http = new NodeFetchHttpClient(fetch, new PublicUrlSafetyValidator());
+  const http = new NodeFetchHttpClient(new PublicUrlSafetyValidator());
   return new GenericWebCollector(
     type,
     new GenericExtractionEngine(

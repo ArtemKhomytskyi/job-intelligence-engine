@@ -1,7 +1,7 @@
 # Fictional, non-sensitive profile used to validate the configuration contract.
 candidate:
   id: example-candidate
-  displayName: Artem
+  displayName: Example Candidate
   headline: Product-minded data and software specialist
   summary: Interested in technical roles with measurable user impact.
   education:

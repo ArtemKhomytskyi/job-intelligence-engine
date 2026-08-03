@@ -82,7 +82,7 @@ Add `docs/architecture/domain-model.md` and `docs/configuration/README.md`; upda
 ## Acceptance criteria
 
 - [x] All required domain contracts and categorical types compile without outer-layer dependencies.
-- [x] Examples contain five enabled tracks, three enabled sources, recommendation limit 20, and candidate name Artem.
+- [x] Examples contain five enabled tracks, three enabled sources, recommendation limit 20, and an explicitly synthetic candidate name.
 - [x] Strict YAML/Zod validation and cross-file rules return structured, useful errors.
 - [x] Default CLI uses private files; `--examples` validates tracked examples in a clean clone.
 - [x] Required unit and integration scenarios pass deterministically.
@@ -138,4 +138,4 @@ Changes are additive except documented updates, dependency additions, scripts, a
 
 ## Final outcome
 
-Completed the scoped domain and configuration foundation. The example CLI prints Artem, five enabled tracks, three enabled sources, and a daily limit of 20. All requested npm, test, coverage, Prisma, build, CLI, dependency, audit, formatting, and diff checks passed. No network collection, persistence model, algorithm, API, UI, secret management, or other later-chunk behavior was added.
+Completed the scoped domain and configuration foundation. The example CLI prints an explicitly synthetic candidate name, five enabled tracks, three enabled sources, and a daily limit of 20. All requested npm, test, coverage, Prisma, build, CLI, dependency, audit, formatting, and diff checks passed. No network collection, persistence model, algorithm, API, UI, secret management, or other later-chunk behavior was added.

@@ -52,7 +52,7 @@ export function formatSourceReadiness(
   if (asJson) return JSON.stringify(report, undefined, 2);
   const lines = report.sources.map(
     (source) =>
-      `- ${source.id} | ${source.type} | ${source.enabled ? 'enabled' : 'disabled'} | ${source.classification.toLocaleLowerCase('en-US')} | ${source.configurationReady ? 'ready' : 'replace placeholder values'}`,
+      `- ${source.id} | ${source.type} | ${source.enabled ? 'enabled' : 'disabled'} | ${source.classification.toLocaleLowerCase('en-US')} | ${source.configurationReady ? 'ready' : source.reasons.join(', ')}`,
   );
   return [
     report.hasRealEnabledSource

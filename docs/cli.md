@@ -15,7 +15,9 @@ incomplete, and 2 means configuration could not be inspected. `--examples`
 inspects the tracked documentation templates.
 
 Replace template URLs and Greenhouse board tokens or Lever company slugs before
-enabling them, then run `npm.cmd run cli -- validate-config`.
+enabling them, then run `npm.cmd run cli -- validate-config`. External generic
+sources must set `allowBrowserFallback: false`; `sources:check` reports
+`BROWSER_FALLBACK_EXTERNAL_UNSAFE` when the unsafe option is enabled.
 
 ## Full daily pipeline
 
@@ -35,7 +37,9 @@ npm.cmd run cli -- run --config-dir config --concurrency 3 --processing-limit 10
 partial failures continue. Invalid configuration exits 2, database/unexpected
 fatal failures exit 3, and fatal/cancelled pipeline stages exit 4. Empty output
 is successful. Enabled placeholders fail with
-`PLACEHOLDER_SOURCE_NOT_ALLOWED` before a CollectionRun is created.
+`PLACEHOLDER_SOURCE_NOT_ALLOWED` before a CollectionRun is created. External
+browser fallback fails with `BROWSER_FALLBACK_EXTERNAL_UNSAFE` at the same
+pre-collection boundary.
 
 ## Local report
 

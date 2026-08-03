@@ -119,6 +119,31 @@ function validateSources(
   const trackIds = new Set(bundle.search.tracks.map((track) => track.id));
   for (const [index, source] of bundle.sources.entries()) {
     validateSafeId(source.id, 'sources', `sources[${index}].id`, issues);
+    if (
+      mode === 'runtime' &&
+      source.enabled &&
+      source.type === 'generic-jsonld'
+    )
+      issues.push({
+        code: 'CONFIG_REFERENCE_INVALID',
+        section: 'sources',
+        fieldPath: `sources[${index}].type`,
+        message:
+          'The legacy generic-jsonld type is not collected. Use generic-page or generic-job-list.',
+      });
+    if (
+      mode === 'runtime' &&
+      source.enabled &&
+      (source.type === 'generic-page' || source.type === 'generic-job-list') &&
+      source.settings.allowBrowserFallback === true
+    )
+      issues.push({
+        code: 'BROWSER_FALLBACK_EXTERNAL_UNSAFE',
+        section: 'sources',
+        fieldPath: `sources[${index}].settings.allowBrowserFallback`,
+        message:
+          'External browser fallback is disabled by the source network policy. Set allowBrowserFallback to false for HTTP-only collection.',
+      });
     for (const [trackIndex, trackId] of source.trackIds.entries()) {
       if (!trackIds.has(trackId)) {
         issues.push({

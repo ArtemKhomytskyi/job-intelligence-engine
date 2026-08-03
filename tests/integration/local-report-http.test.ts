@@ -11,6 +11,7 @@ import {
   type RunFullPipelineResult,
   type UserApplicationStatus,
 } from '../../src/application/index.js';
+import type { SourceReadinessReport } from '../../src/domain/index.js';
 import { NodeLocalServer } from '../../src/infrastructure/index.js';
 import {
   createLocalReportHandler,
@@ -21,7 +22,10 @@ const logger = { debug() {}, info() {}, warn() {}, error() {} };
 let server: NodeLocalServer;
 let baseUrl: string;
 let runtime: FakeRuntime;
-let sourceReadiness: { sources: never[]; hasRealEnabledSource: boolean };
+let sourceReadiness: {
+  sources: SourceReadinessReport['sources'];
+  hasRealEnabledSource: boolean;
+};
 
 beforeEach(async () => {
   runtime = new FakeRuntime();
@@ -155,6 +159,17 @@ describe('local report HTTP interface', () => {
     expect(runtime.statusUpdates).toEqual([]);
   });
 
+  it('rejects mutations with no browser origin evidence', async () => {
+    const response = await fetch(`${baseUrl}/recommendations/rec-1/status`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'status=VIEWED',
+    });
+    expect(response.status).toBe(400);
+    expect(runtime.statusUpdates).toEqual([]);
+  });
+
   it('runs the shared pipeline action and maps active conflicts', async () => {
     const success = await fetch(`${baseUrl}/actions/run`, {
       method: 'POST',
@@ -177,16 +192,32 @@ describe('local report HTTP interface', () => {
 
   it('renders first-run setup and controls the run action without a 500', async () => {
     sourceReadiness.hasRealEnabledSource = false;
+    sourceReadiness.sources = [
+      {
+        id: 'synthetic-generic',
+        type: 'generic-page',
+        enabled: true,
+        classification: 'REAL',
+        configurationReady: false,
+        blockerCodes: ['BROWSER_FALLBACK_EXTERNAL_UNSAFE'],
+        reasons: [
+          'external browser fallback is disabled by the source network policy',
+        ],
+      },
+    ];
 
     const recommendations = await fetch(`${baseUrl}/recommendations`);
     const recommendationHtml = await recommendations.text();
     expect(recommendations.status).toBe(200);
-    expect(recommendationHtml).toContain('No real job sources configured.');
+    expect(recommendationHtml).toContain('Job sources are not ready.');
+    expect(recommendationHtml).toContain(
+      'external browser fallback is disabled by the source network policy',
+    );
     expect(recommendationHtml).toContain('Set up job sources');
     expect(recommendationHtml).not.toContain('>Run pipeline<');
 
     const runs = await fetch(`${baseUrl}/runs/latest`);
-    expect(await runs.text()).toContain('No real job sources configured.');
+    expect(await runs.text()).toContain('Job sources are not ready.');
 
     const blocked = await fetch(`${baseUrl}/actions/run`, {
       method: 'POST',
@@ -205,6 +236,10 @@ describe('local report HTTP interface', () => {
     expect(setupHtml).toContain('Configure real job sources');
     expect(setupHtml).toContain('config/sources.yaml');
     expect(setupHtml).toContain('npm run cli -- sources:check');
+    expect(setupHtml).toContain('allowBrowserFallback: false');
+    expect(setupHtml).toContain(
+      'external browser fallback is disabled by the source network policy',
+    );
     expect(setupHtml).not.toContain('Unexpected error');
   });
 

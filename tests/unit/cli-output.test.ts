@@ -10,7 +10,7 @@ import {
 
 describe('CLI output', () => {
   const summary = {
-    candidateDisplayName: 'Artem',
+    candidateDisplayName: 'Example Candidate',
     enabledTrackCount: 5,
     enabledSourceCount: 3,
     dailyRecommendationLimit: 20,
@@ -20,7 +20,7 @@ describe('CLI output', () => {
     expect(formatConfigurationSummary(summary, false)).toBe(
       [
         'Configuration valid',
-        'Candidate: Artem',
+        'Candidate: Example Candidate',
         'Enabled tracks: 5',
         'Enabled sources: 3',
         'Daily recommendation limit: 20',
@@ -65,6 +65,7 @@ describe('CLI output', () => {
     ).toContain('[CONFIG_FILE_NOT_FOUND] profile');
     expect(formatHelp()).toContain('validate-config');
     expect(formatHelp()).toContain('process');
+    expect(formatHelp()).toContain('Greenhouse, Lever, and generic sources');
   });
 
   it('formats processing summaries as text and JSON', () => {

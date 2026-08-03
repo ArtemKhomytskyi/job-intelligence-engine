@@ -131,7 +131,7 @@ describe('local recommendation report browser flow', () => {
 
     await page.goto(`${baseUrl}/recommendations`);
     await page
-      .getByRole('heading', { name: 'No real job sources configured.' })
+      .getByRole('heading', { name: 'Job sources are not ready' })
       .waitFor();
     expect(
       await page.getByRole('button', { name: 'Run pipeline' }).count(),
